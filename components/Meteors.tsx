@@ -10,7 +10,7 @@ import { moonAt, nearCloud } from "./CloudBand";
 const FINE = 4; // css px per overlay pixel: flames are this fine, so they sit in proportion to body text
 const CELL = 8; // css px per sky cell: meteors keep the sky's grain and their original size
 const SPEED = 640, G = 300; // css px/s, px/s² (enough sag for a visible arc)
-const FREE_SPEED = [850, 1000], FREE_LIFE = [1.5, 1.9]; // free ones cross behind the page and come out the far side
+const FREE_SPEED = [520, 640], FREE_LIFE = [0.9, 1.3]; // short arcs, like the sketch: ~300-400 px left, curling down
 const TAIL = 34; // tail samples, one sky cell apart
 const SHOWER = [1, 4], GAP = [1.2, 3.2], REST = 30, FIRST = 4.5, AIM = 0.35; // count, s apart, s rest, s to first, P(a shower has a hit)
 const FLASH = 0.15, BURN = 1.8, COOL = 1; // s: white-hot impact, burning, cooling back to normal
@@ -143,18 +143,20 @@ export function Meteors() {
         const T = Math.min(1.5, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED)), g = Math.min(G, (py - y0) / (T * T));
         meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * g * T * T) / T, g, t0: now, life: T, range });
       } else {
-        // A loose radiant: each one appears somewhere around the moon's left side (a few a little lower),
-        // heads left and always a little down, and bends with its own amount of gravity.
+        // Like a sketch of falling stars: each starts somewhere in the open sky right of the page, from the moon's
+        // height down to the lower screen, leaves almost level, and curls down to a set end angle as it goes behind the page.
+        const W = innerWidth, H = innerHeight, left = sh && W - sh.right > 120 ? sh.right + 40 : W + 10;
         let sx = 0, sy = 0, ok = false;
         for (let i = 0; i < 12 && !ok; i++) {
-          const p = rand(110, 250) * Math.PI / 180, o = m.r + rand(12, 140); // 180° is straight left of the moon
-          sx = m.x + Math.cos(p) * o; sy = m.y - Math.sin(p) * o + rand(-10, 50);
-          ok = !inSheet(sx, sy); // never spawn inside the page box
+          sx = rand(left, Math.max(left, W - 30)); sy = rand(Math.max(20, m.y - m.r), H * 0.8);
+          ok = !inSheet(sx, sy) && Math.hypot(sx - m.x, sy - m.y) > m.r + 12; // never inside the page box or on the moon
         }
-        if (!ok) return; // moon is behind the page (narrow screens): skip this one
-        const deg = rand(5, 30), a = deg * Math.PI / 180, v = rand(FREE_SPEED[0], FREE_SPEED[1]);
-        const g = rand(70, 240) * (1 - Math.max(0, deg) / 48); // steeper starts get less bend, so the end never turns vertical
-        meteors.push({ x: sx, y: sy, vx: -Math.cos(a) * v, vy: Math.sin(a) * v, g, t0: now, life: rand(FREE_LIFE[0], FREE_LIFE[1]), range: null });
+        if (!ok) return;
+        const v = rand(FREE_SPEED[0], FREE_SPEED[1]), T = rand(FREE_LIFE[0], FREE_LIFE[1]);
+        const a0 = rand(3, 15) * Math.PI / 180, a1 = rand(38, 55) * Math.PI / 180; // start and end angle below horizontal
+        const vx = -Math.cos(a0) * v, vy = Math.sin(a0) * v;
+        const g = (Math.tan(a1) * -vx - vy) / T; // gravity that bends a0 into exactly a1 by the end of the flight
+        meteors.push({ x: sx, y: sy, vx, vy, g, t0: now, life: T, range: null });
       }
       kick();
     };
