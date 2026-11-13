@@ -218,7 +218,7 @@ kbd { font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); padding:
 
 /* The name's star. A shooting star streaks in once the scramble settles, lands, and the sparkle ignites, then twinkles. */
 .star { --gold: oklch(0.86 0.13 86); position: relative; display: inline-block; width: 0.72em; height: 0.72em; margin-left: 0.02em; vertical-align: 0.55em; }
-.star svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 0.12em oklch(0.86 0.13 86 / 0.55)); animation: ignite 0.5s steps(4, end) 1.55s backwards, breathe 5s ease-in-out 2.1s infinite; transition: filter 0.3s var(--ease); }
+.star svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 0.12em oklch(0.86 0.13 86 / 0.55)); animation: ignite 0.5s steps(4, end) 1.45s backwards, breathe 5s ease-in-out 2.1s infinite; transition: filter 0.3s var(--ease); }
 .star .t0 { fill: oklch(0.99 0.02 95); }
 .star .t1 { fill: oklch(0.95 0.08 95); }
 .star .t2 { fill: var(--gold); }
@@ -231,10 +231,11 @@ h1:hover .star .tip { animation: sparkle 0.6s steps(1) infinite; }
 @keyframes breathe { 50% { transform: scale(0.88); } }
 @keyframes twinkle { 0%, 40%, 50%, 100% { opacity: 0; } 42%, 48% { opacity: 1; } 45% { opacity: 0.4; } }
 @keyframes sparkle { 0% { opacity: 1; } 50% { opacity: 0.3; } }
-/* The streak is rotated as a whole; its tail travels along that line and ends on the star's centre. */
-.streak { position: absolute; top: 50%; right: 50%; width: 3.2em; height: 0.06em; transform-origin: right center; rotate: 18deg; pointer-events: none; }
-.streak::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, oklch(0.86 0.13 86 / 0.25) 40%, var(--gold)); opacity: 0; animation: streak 0.75s cubic-bezier(0.3, 0, 0.2, 1) 0.85s; }
-@keyframes streak { 0% { opacity: 0; transform: translateX(-140%) scaleX(0.4); } 20% { opacity: 1; } 85% { opacity: 1; transform: translateX(0) scaleX(1); } 100% { opacity: 0; transform: translateX(0) scaleX(0.1); transform-origin: right; } }
+/* Entrance: pixels light along an arc from the K into the star, each flashing gold then stepping out, a dithered trail. */
+.arc { position: absolute; inset: 0; pointer-events: none; }
+.arc i { --px: calc(0.72em / 11); position: absolute; left: calc(0.36em + var(--x) * var(--px)); top: calc(0.36em + var(--y) * var(--px)); width: var(--px); height: var(--px); translate: -50% -50%; background: oklch(0.95 0.08 95); opacity: 0; animation: trail 0.48s steps(4, end) calc(0.85s + var(--f) * 0.62s); }
+.arc i:nth-child(odd) { animation-duration: 0.36s; } /* uneven fade = dither, not a smooth line */
+@keyframes trail { 0% { opacity: 1; background: oklch(0.99 0.02 95); } 25% { opacity: 1; background: var(--gold); } 50% { opacity: 0.7; background: oklch(0.78 0.13 78); } 75% { opacity: 0.35; background: oklch(0.7 0.12 70); } 100% { opacity: 0; } }
 
 @media (max-width: 40rem) {
   .sheet { margin: 4.5rem auto 4rem; padding: 1.5rem 1.25rem 2rem; }
