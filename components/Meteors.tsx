@@ -2,21 +2,23 @@
 
 import { useEffect, useRef } from "react";
 import { BAYER, oklch } from "../lib/field";
-import { moonAt } from "./CloudBand";
+import { moonAt, nearCloud } from "./CloudBand";
 
 // Shooting stars, drawn above everything. Showers of 1-4, well spaced, radiating from the moon, then the sky rests.
 // Now and then one lands on a real letter and sets it alight: the letter itself is recoloured through the
 // CSS Custom Highlight API (no DOM changes, so React never notices), and pixel flames rise off it here.
 const FINE = 4; // css px per overlay pixel: flames are this fine, so they sit in proportion to body text
 const CELL = 8; // css px per sky cell: meteors keep the sky's grain and their original size
-const SPEED = 640, G = 110, FREE_LIFE = 1.3; // css px/s, px/s² (a slight sag, so streaks stay nearly straight like real ones), max s
+const SPEED = 640, G = 300; // css px/s, px/s² (enough sag for a visible arc)
+const FREE_SPEED = [850, 1000], FREE_LIFE = [1.5, 1.9]; // free ones cross behind the page and come out the far side
 const TAIL = 34; // tail samples, one sky cell apart
 const SHOWER = [1, 4], GAP = [1.2, 3.2], REST = 30, FIRST = 4.5, AIM = 0.35; // count, s apart, s rest, s to first, P(a shower has a hit)
 const FLASH = 0.15, BURN = 1.8, COOL = 1; // s: white-hot impact, burning, cooling back to normal
 
 const rgb32 = (c: number[]) => (255 << 24) | (c[2] << 16) | (c[1] << 8) | c[0];
-// Head to tail: white, pale gold, gold, then a dim amber the dither thins out into nothing.
-const MET = [oklch(0.99, 0.02, 95), oklch(0.93, 0.09, 92), oklch(0.82, 0.13, 82), oklch(0.62, 0.11, 60)].map(rgb32);
+// Head to tail: white, pale gold, then cooling into the sky's own blues (CloudBand PAL 5 and 4), so the tail dissolves into the sky.
+const MET = [oklch(0.99, 0.02, 95), oklch(0.93, 0.09, 92), oklch(0.8, 0.1, 85), oklch(0.5, 0.085, 245)].map(rgb32);
+const GLOW = rgb32(oklch(0.4, 0.085, 252)); // the head lights the sky around it, in the sky's lighter tone
 // Fire: white-gold, gold, amber, orange, ember red, ash.
 const FIRE = [oklch(0.98, 0.04, 95), oklch(0.9, 0.14, 92), oklch(0.8, 0.16, 72), oklch(0.68, 0.18, 48), oklch(0.55, 0.17, 35), oklch(0.38, 0.06, 30)].map(rgb32);
 // A hit letter: white-hot flash, flickers gold/orange while burning, cools through ember red, then back to its own colour.
@@ -93,11 +95,13 @@ export function Meteors() {
     let sheet: DOMRect | undefined;
     const plotCell = (cx: number, cy: number, col: number, f: number, behind = false) => {
       cx = Math.round(cx); cy = Math.round(cy);
+      const x = cx * CELL, y = cy * CELL;
+      const onSheet = !!sheet && x + CELL > sheet.left && x < sheet.right && y + CELL > sheet.top && y < sheet.bottom;
+      if (behind && onSheet) return;
+      // Over open sky the near clouds are in front of the meteor, the way they drift across the moon.
+      const nc = nearCloud;
+      if (!onSheet && cx >= 0 && cy >= 0 && cx < nc.cols && cy < nc.rows) f *= 1 - Math.min(1, nc.f[cy * nc.cols + cx] * 1.2);
       if (f <= BAYER[(cy & 3) * 4 + (cx & 3)]) return;
-      if (behind && sheet) {
-        const x = cx * CELL, y = cy * CELL;
-        if (x + CELL > sheet.left && x < sheet.right && y + CELL > sheet.top && y < sheet.bottom) return;
-      }
       const s = CELL / FINE;
       for (let oy = 0; oy < s; oy++) for (let ox = 0; ox < s; ox++) plot(cx * s + ox, cy * s + oy, col, 1);
     };
@@ -115,10 +119,11 @@ export function Meteors() {
     };
 
     // Everything below is in css px. A real shower has a radiant: every streak traces back to one point.
-    // Here that point is the moon, so meteors fan out from just beyond its disc across the page.
-    const radiant = () => (moonAt.x >= 0 ? moonAt : { x: innerWidth * 0.85, y: innerHeight * 0.15, r: 0 });
+    // Here that point is the moon, and the shower runs right to left. Where the moon sits on the left
+    // (phones), the radiant moves just off the top-right corner so the direction never flips.
+    const radiant = () => (moonAt.x > innerWidth / 2 ? moonAt : { x: innerWidth + 40, y: moonAt.y > 0 ? moonAt.y : innerHeight * 0.12, r: 0 });
     const launch = (aim: boolean) => {
-      const now = performance.now() / 1000, W = innerWidth, H = innerHeight, m = radiant();
+      const now = performance.now() / 1000, m = radiant();
       const sh = document.querySelector(".sheet")?.getBoundingClientRect();
       const inSheet = (x: number, y: number) => !!sh && x > sh.left - 16 && x < sh.right + 16 && y > sh.top - 16 && y < sh.bottom + 16;
       const range = aim ? pickLetter() : null;
@@ -137,17 +142,14 @@ export function Meteors() {
         const T = Math.min(1.5, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED));
         meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * G * T * T) / T, t0: now, life: T, range });
       } else {
-        // Fan out from the moon toward a random patch of open sky (not under the page), starting a little way out.
-        let tx = W * 0.5, ty = H * 0.5;
-        for (let i = 0; i < 30; i++) {
-          const x = rand(0, W), y = rand(0, H * 0.75);
-          if (!inSheet(x, y) && Math.hypot(x - m.x, y - m.y) > m.r + 180) { tx = x; ty = y; break; }
-        }
-        const a = Math.atan2(ty - m.y, tx - m.x), ux = Math.cos(a), uy = Math.sin(a);
-        let off = m.r + rand(30, 160);
-        while (off > m.r && inSheet(m.x + ux * off, m.y + uy * off)) off -= 8; // never spawn inside the page box
-        if (inSheet(m.x + ux * off, m.y + uy * off)) return; // moon is behind the page: skip this one
-        meteors.push({ x: m.x + ux * off, y: m.y + uy * off, vx: ux * SPEED, vy: uy * SPEED, t0: now, life: rand(0.9, FREE_LIFE), range: null });
+        // Leave the moon heading left and a little up; gravity bends it over into a falling arc.
+        const a = rand(5, 18) * Math.PI / 180, v = rand(FREE_SPEED[0], FREE_SPEED[1]), ux = -Math.cos(a), uy = -Math.sin(a);
+        const ox = -Math.cos(a * 2), oy = Math.sin(rand(-0.6, 0.6)); // start on the moon's left limb, a little above or below
+        let off = m.r + rand(16, 48);
+        const sx = (o: number) => m.x + ox * o, sy = (o: number) => m.y + oy * o;
+        while (off > m.r && inSheet(sx(off), sy(off))) off -= 8; // never spawn inside the page box
+        if (inSheet(sx(off), sy(off))) return; // moon is behind the page: skip this one
+        meteors.push({ x: sx(off), y: sy(off), vx: ux * v, vy: uy * v, t0: now, life: rand(FREE_LIFE[0], FREE_LIFE[1]), range: null });
       }
       kick();
     };
@@ -179,7 +181,7 @@ export function Meteors() {
         const fade = Math.min(1, age / 0.12) * (m.range ? 1 : Math.min(1, (m.life - age) / 0.4));
         const at = (q: number) => [(m.x + m.vx * q) / CELL, (m.y + m.vy * q + 0.5 * G * q * q) / CELL];
         // The sky's original meteor: the tail traces the arc back in time, one cell per sample, two cells thick near the head.
-        const dq = CELL / SPEED;
+        const dq = CELL / Math.hypot(m.vx, m.vy);
         for (let k = TAIL - 1; k >= 0; k--) {
           const q = age - k * dq;
           if (q < 0 || q > m.life) continue;
@@ -190,6 +192,12 @@ export function Meteors() {
         }
         if (age < m.life) { // the head: a 2x2 white-gold core in a one-cell yellow glow, corners rounded
           const [hx, hy] = at(age);
+          for (let oy = -3; oy <= 4; oy++) // first, a sparse dithered pool of sky light around it, like the moon's halo
+            for (let ox = -3; ox <= 4; ox++) {
+              const d = Math.hypot(ox - 0.5, oy - 0.5);
+              const gx = Math.round(hx + ox) * 2, gy = Math.round(hy + oy) * 2; // CELL / FINE = 2; never paint over the tail
+              if (d > 1.6 && d < 4 && !buf[gy * cols + gx]) plotCell(hx + ox, hy + oy, GLOW, fade * 0.45 * (1 - (d - 1.6) / 2.4), behind);
+            }
           for (let oy = -1; oy <= 2; oy++)
             for (let ox = -1; ox <= 2; ox++) {
               const ex = ox < 0 || ox > 1, ey = oy < 0 || oy > 1;

@@ -38,6 +38,8 @@ const moonPhase = (ms: number) => ((((ms / 86400000 + 2440587.5 - 2451550.1) / S
 
 /** Where the moon sits, in viewport css px (r = disc radius). Meteors use it as their shower's radiant. */
 export const moonAt = { x: -1, y: -1, r: 0 };
+/** The near cloud layer, per sky cell (8 css px), so meteors can pass behind clouds like the moon does. */
+export const nearCloud = { cols: 0, rows: 0, f: new Float32Array(0) };
 
 type Drop = { x: number; y: number; t0: number };
 
@@ -165,6 +167,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
       else { R = Math.max(4, Math.min(R0, Math.floor((top * 0.4) / cell))); mx = R + 3; my = top / 2 / cell; }
       HALO_R = R * 4;
       moonAt.x = mx * cell; moonAt.y = my * cell; moonAt.r = o.moon ? R * cell : 0;
+      nearCloud.cols = cols; nearCloud.rows = rows; nearCloud.f = cloud;
       return true;
     };
     const repaint = () => { baseNow(); compose(); };
