@@ -1,0 +1,227 @@
+/* Night sky resume. One theme, no radii. */
+:root {
+  --bg: oklch(0.3 0.07 259); /* the sky's mid band; shows behind the canvas before it paints */
+  --panel: oklch(0.2 0.04 262 / 0.92);
+  --fg: oklch(0.96 0.01 250);
+  --fg-2: oklch(0.78 0.03 250);
+  --line: oklch(1 0 0 / 0.16);
+  --accent: oklch(0.8 0.12 245);
+  --btn-fg: oklch(0.2 0.04 262);
+  --sky-top: oklch(0.1 0.04 270);
+  --muted: var(--fg-2); /* names the original components use */
+  --border: var(--line);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --sans: var(--font-sans), system-ui, sans-serif;
+  --mono: var(--font-mono), ui-monospace, monospace;
+  interpolate-size: allow-keywords;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; scrollbar-width: none; font-size: clamp(100%, 0.6rem + 0.3vw, 137.5%); } /* scrollbar hidden; the progress bar shows position. Type (and every rem) grows past ~1900px wide: ~17px on a 27" 1440p, ~21px on 4K. Never below the reader's own setting, so browser zoom still works */
+html::-webkit-scrollbar { display: none; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 1.0625rem; line-height: 1.55; font-kerning: normal; -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent); color: var(--btn-fg); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+ul, dl { list-style: none; }
+p { text-wrap: pretty; }
+h1 { text-wrap: balance; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Links: a quiet line that an accent line grows over, left to right. */
+a {
+  position: relative; color: inherit; text-decoration: none; padding-bottom: 0.1em;
+  background: linear-gradient(var(--line), var(--line)) 0 100% / 100% 1px no-repeat, linear-gradient(var(--accent), var(--accent)) 0 100% / 0 2px no-repeat; /* dim resting line, like the original site */
+  transition: background-size 0.6s var(--ease), color 0.25s var(--ease);
+}
+a:hover { color: var(--accent); background-size: 100% 1px, 100% 2px; }
+a.btn, a.card, a.prow, a.icon, .spotify-widget a, .pn a, .back { background-image: none; }
+
+/* Sky. The gradient is the loading state: the pixel canvas fades in over it once it has painted. */
+.site { position: relative; isolation: isolate; min-height: 100svh; }
+.site::before { content: ""; position: fixed; inset: 0; z-index: -1; background: linear-gradient(var(--sky-top), var(--bg) 70%); }
+.clouds { position: fixed; top: 0; left: 0; z-index: -1; display: block; image-rendering: pixelated; opacity: 0; transition: opacity 0.8s var(--ease); }
+.clouds.ready { opacity: 1; }
+.progress { position: fixed; inset: 0 0 auto 0; z-index: 50; height: 2px; background: var(--accent); transform: scaleX(0); transform-origin: left; pointer-events: none; }
+@supports (animation-timeline: scroll()) { .progress { animation: grow linear both; animation-timeline: scroll(root); } }
+@keyframes grow { to { transform: scaleX(1); } }
+
+/* The sheet floats on the sky: square, near-opaque, so text never fights the clouds. */
+.sheet { width: min(50rem, 100% - 2 * clamp(0.75rem, 3vw, 2rem)); margin: 4.5rem auto 6rem; padding: 2.5rem max(2.5rem, env(safe-area-inset-right)) 3rem max(2.5rem, env(safe-area-inset-left)); background: var(--panel); border: 1px solid var(--line); } /* always a gap to the screen edge */
+
+h1 { font-size: clamp(2.5rem, 7vw, 3.5rem); line-height: 1; font-weight: 500; letter-spacing: -0.035em; margin-bottom: 0.75rem; }
+.tag { font-size: 1.1875rem; line-height: 1.45; color: var(--fg-2); max-width: 36ch; margin-bottom: 1.25rem; }
+.contact { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.5rem; font-size: 0.9375rem; }
+.contact a:not(.btn, .icon)::before { content: ""; position: absolute; inset: -0.75rem -0.25rem; } /* 44px hit area */
+.socials { display: flex; gap: 0.25rem; margin-inline: -0.5rem; } /* boxes are 44px; the negative margin keeps the glyphs on the row's rhythm */
+.icon { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; color: var(--fg-2); transition: color 0.2s var(--ease), translate 0.25s var(--ease); }
+.icon:hover { color: var(--accent); translate: 0 -2px; }
+.icon svg { width: 1.25rem; height: 1.25rem; } /* rem, so the marks grow with the type on big screens */
+.contact a { transition-duration: 0.3s, 0.25s; } /* nav-style links use the original 0.3s bar */
+
+.btn { display: inline-flex; align-items: center; min-height: 2.75rem; padding-inline: 1.25rem; background-color: var(--accent); color: var(--btn-fg); font-weight: 500; transition: background-color 0.2s var(--ease), transform 0.15s var(--ease), translate 0.25s var(--ease); }
+.btn:hover { color: var(--btn-fg); background-color: color-mix(in oklch, var(--accent), white 14%); translate: 0 -2px; }
+.btn:active { transform: scale(0.97); translate: 0 0; }
+
+.copy { position: relative; display: inline-grid; min-width: 6.5rem; min-height: 2.75rem; place-items: center; background: none; border: 1px solid var(--line); color: var(--fg-2); font-family: var(--mono); font-size: 0.8125rem; cursor: pointer; overflow: hidden; transition: border-color 0.2s var(--ease), color 0.2s var(--ease), transform 0.15s var(--ease); }
+.copy span { grid-area: 1 / 1; transition: transform 0.35s var(--ease), opacity 0.25s var(--ease); }
+.copy-b { transform: translateY(100%); opacity: 0; }
+.copy:hover { border-color: var(--accent); color: var(--fg); }
+.copy:active { transform: scale(0.97); }
+.copy[data-done="true"] { border-color: var(--accent); color: var(--accent); }
+.copy[data-done="true"] .copy-a { transform: translateY(-100%); opacity: 0; }
+.copy[data-done="true"] .copy-b { transform: none; opacity: 1; }
+
+.row { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: 1.5rem; margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); scroll-margin-top: 1.5rem; }
+.row.wide { grid-template-columns: 1fr; gap: 1rem; }
+h2 { font-family: var(--mono); font-size: 0.8125rem; font-weight: 400; color: var(--fg-2); line-height: 1.9; }
+
+.title { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-weight: 500; }
+.year { font-family: var(--mono); font-size: 0.8125rem; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+.sub { color: var(--fg-2); font-weight: 400; }
+
+/* Projects: featured cards, then a list that scales to any number of projects. */
+.featured { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+.card { display: block; border: 1px solid var(--line); transition: border-color 0.25s var(--ease), transform 0.25s var(--ease); }
+.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.cover { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; image-rendering: pixelated; background: var(--bg); transition: filter 0.3s var(--ease); }
+.card:hover .cover { filter: brightness(1.18); }
+img.cover, img.hero-cover { image-rendering: auto; object-position: left top; } /* real screenshots: smooth, and keep the top-left (where UIs start) in frame */
+.featured .card:first-child { grid-column: 1 / -1; } /* the lead project gets the full width */
+.featured .card:first-child .cover { aspect-ratio: 2 / 1; }
+.card-body { display: grid; gap: 0.25rem; padding: 1rem; }
+.tags, .facts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; margin-top: 0.5rem; font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); }
+.tags span::before { content: "# "; opacity: 0.6; }
+.plist { margin-top: 0.5rem; border-top: 1px solid var(--line); }
+.plist li { border-bottom: 1px solid var(--line); }
+.plist li:last-child { border-bottom: 0; } /* the next section's rule closes the list */
+.prow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 1rem; align-items: center; gap: 1rem; min-height: 3.5rem; transition: color 0.18s var(--ease); }
+.prow:hover { color: var(--accent); }
+.pname { font-weight: 500; display: inline-block; transition: transform 0.2s var(--ease); }
+.prow:hover .pname { transform: translateX(3px); }
+.ptags { font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); text-align: right; }
+.chev { width: 0.5rem; height: 0.5rem; border-top: 1.5px solid currentColor; border-right: 1.5px solid currentColor; rotate: 45deg; transition: translate 0.2s var(--ease); }
+.prow:hover .chev { translate: 3px 0; }
+
+/* Expandable rows are native <details>: keyboard and screen readers work without script.
+   The height transition is CSS, so it can be reversed mid-flight; it grows from the summary. */
+.entry summary { display: block; list-style: none; cursor: pointer; padding-block: 0.75rem; transition: color 0.18s var(--ease); }
+.entry summary::-webkit-details-marker { display: none; }
+.entry summary:hover { color: var(--accent); }
+.stack > .entry + .entry { border-top: 1px solid var(--line); }
+.tog { position: relative; flex: none; width: 0.875rem; height: 0.875rem; transition: transform 0.25s var(--ease); }
+.tog::before, .tog::after { content: ""; position: absolute; left: 0; top: 50%; width: 100%; height: 1.5px; background: currentColor; translate: 0 -50%; }
+.tog::after { rotate: 90deg; transition: transform 0.25s var(--ease); }
+.entry[open] .tog { transform: rotate(180deg); }
+.entry[open] .tog::after { transform: scaleX(0); }
+
+.entry::details-content { block-size: 0; overflow: clip; transition: block-size 0.25s var(--ease), content-visibility 0.25s allow-discrete; }
+.entry[open]::details-content { block-size: auto; }
+.more { padding: 0.25rem 0 1.25rem; opacity: 0; transform: translateY(-4px); transform-origin: top left; transition: opacity 0.18s var(--ease), transform 0.18s var(--ease); }
+.entry[open] .more { opacity: 1; transform: none; }
+@starting-style { .entry[open] .more { opacity: 0; transform: translateY(-4px); } }
+.more p { max-width: 58ch; margin-bottom: 0.75rem; }
+.more li { margin-top: 0.75rem; }
+.more strong { display: block; font-weight: 500; }
+.more li span { display: block; color: var(--fg-2); max-width: 56ch; }
+
+.int summary { display: grid; grid-template-columns: 7rem minmax(0, 1fr) auto; gap: 1rem; align-items: baseline; font-weight: 400; }
+.int .dt { color: var(--fg-2); }
+
+.line { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 1rem; }
+.line + .line { margin-top: 0.5rem; }
+dt { color: var(--fg-2); }
+dd { overflow-wrap: anywhere; }
+
+/* Project page */
+.back { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; margin-bottom: 1rem; color: var(--fg-2); font-size: 0.9375rem; }
+.back:hover { color: var(--accent); }
+.back-chev { rotate: -135deg; }
+.back:hover .back-chev { translate: -3px 0; }
+.tagchip { padding: 0.125rem 0.5rem; border: 1px solid var(--line); }
+.hero-cover { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; image-rendering: pixelated; border: 1px solid var(--line); margin: 1.5rem 0; }
+.prose p { max-width: 58ch; }
+.prose .contact { margin-top: 1.25rem; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin-top: 2rem; }
+.gallery img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border: 1px solid var(--line); }
+.pn { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.pn a { display: grid; gap: 0.125rem; padding: 0.75rem 1rem; border: 1px solid var(--line); transition: border-color 0.25s var(--ease); }
+.pn a:last-child { text-align: right; }
+.pn a:hover { border-color: var(--accent); }
+
+/* Markup from the original DestinyStatus component. */
+/* The ↗ marker, timed like the original site: it turns accent and lifts up-right on hover. */
+.ext { display: inline-block; margin-left: 0.25rem; font-size: 0.75em; color: var(--fg-2); transform: translateY(-1px); transition: color 0.25s var(--ease), transform 0.25s var(--ease); }
+a:hover .ext, a:focus-visible .ext { color: var(--accent); transform: translate(1px, -3px); }
+.btn .ext, .btn:hover .ext { color: inherit; } /* on the accent button the arrow takes the button's text colour; it still lifts */
+/* Internal links point with a chevron (project rows, back, previous/next); external links carry ↗. */
+.pn-name { display: inline-flex; align-items: center; gap: 0.5rem; }
+.pn a:last-child .pn-name { justify-content: flex-end; }
+.pn a:hover .chev { translate: 3px 0; }
+.pn a:hover .back-chev { translate: -3px 0; }
+.dim { color: var(--fg-2); }
+
+/* Original Spotify widget on a small sheet of its own. */
+.spotify-widget { display: flex; flex-direction: column; padding: 0.75rem 1rem; background: var(--panel); border: 1px solid var(--line); animation: slide-in 0.6s var(--ease) both; }
+.spotify-widget a { text-shadow: none !important; }
+@media (max-width: 64rem) { .spotify-widget { display: none; } }
+/* The original widget is sized in px inline; zoom it to track the rem scale on big monitors. */
+@media (min-width: 2200px) { .spotify-widget { zoom: 1.1; } }
+@media (min-width: 2800px) { .spotify-widget { zoom: 1.25; } }
+@media (min-width: 3400px) { .spotify-widget { zoom: 1.35; } }
+
+/* Search */
+.controls { position: fixed; top: max(1rem, env(safe-area-inset-top)); right: max(1rem, env(safe-area-inset-right)); z-index: 40; display: flex; gap: 0.5rem; }
+.ctl { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-width: 2.75rem; min-height: 2.75rem; padding-inline: 0.75rem; background: var(--panel); border: 1px solid var(--line); color: var(--fg); font: inherit; font-size: 0.9375rem; cursor: pointer; transition: border-color 0.2s var(--ease), transform 0.15s var(--ease); }
+.ctl:hover { border-color: var(--accent); }
+.ctl:active { transform: scale(0.95); }
+kbd { font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); padding: 0.125rem 0.375rem; border: 1px solid var(--line); border-bottom-width: 2px; }
+
+/* Command palette (cmdk). A solid panel, a search row, grouped rows with one icon column, keycap hints. */
+.pal-overlay { position: fixed; inset: 0; z-index: 90; background: oklch(0.06 0.03 265 / 0.6); animation: fade 0.15s var(--ease); }
+.pal-overlay[data-state="closed"] { animation: fade 0.15s var(--ease) reverse forwards; }
+.pal { position: fixed; z-index: 100; top: 14%; left: 50%; translate: -50% 0; width: min(36rem, calc(100vw - 2rem)); background: oklch(0.2 0.04 262); color: var(--fg); border: 1px solid var(--line); box-shadow: 0 16px 48px oklch(0.05 0.03 265 / 0.6); transform-origin: top center; animation: pop 0.16s var(--ease); }
+.pal[data-state="closed"] { animation: pop 0.16s var(--ease) reverse forwards; }
+.pal-input { display: flex; align-items: center; gap: 0.75rem; padding-inline: 1rem; border-bottom: 1px solid var(--line); color: var(--fg-2); }
+.pal [cmdk-input] { flex: 1; min-width: 0; min-height: 3.5rem; background: none; border: 0; color: var(--fg); font: inherit; outline: none; caret-color: var(--accent); }
+.pal [cmdk-input]::placeholder { color: var(--fg-2); }
+.pal [cmdk-list] { max-height: min(22rem, 55svh); overflow-y: auto; overscroll-behavior: contain; padding: 0.5rem; scrollbar-width: thin; scrollbar-color: oklch(1 0 0 / 0.2) transparent; transition: height 0.15s var(--ease); }
+.pal [cmdk-group] + [cmdk-group] { margin-top: 0.5rem; }
+.pal [cmdk-group-heading] { padding: 0.5rem 0.75rem 0.25rem; font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); }
+.pal [cmdk-item] { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto auto; align-items: center; gap: 0.75rem; min-height: 2.5rem; padding: 0 0.75rem; color: var(--fg-2); cursor: pointer; transition: background-color 0.12s var(--ease), color 0.12s var(--ease); }
+.pal [cmdk-item][data-selected="true"] { background: oklch(1 0 0 / 0.06); color: var(--fg); }
+.pal [cmdk-item][data-selected="true"] .pal-ico { color: var(--accent); }
+.pal-ico, .pal-out { display: grid; place-items: center; }
+.pal svg { width: 1rem; height: 1rem; }
+.pal-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-out { color: var(--fg-2); opacity: 0; transition: opacity 0.12s var(--ease); }
+.pal [cmdk-item][data-selected="true"] .pal-out { opacity: 1; }
+.pal [cmdk-empty] { padding: 2rem 0.75rem; text-align: center; color: var(--fg-2); }
+.pal-foot { display: flex; gap: 1.25rem; padding: 0.625rem 1rem; border-top: 1px solid var(--line); font-size: 0.8125rem; color: var(--fg-2); }
+.pal-foot span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.pal-foot kbd + kbd { margin-left: 0.125rem; }
+.hint { font-family: var(--mono); font-size: 0.8125rem; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+@media (pointer: coarse) { .pal-foot, .pal-input kbd { display: none; } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+
+/* One entrance: the header staggers in on load. Nothing else flies in. */
+.rise { animation: rise 0.5s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes slide-in { from { opacity: 0; transform: translateX(-8px); } }
+
+@media (max-width: 40rem) {
+  .sheet { margin: 4.5rem auto 4rem; padding: 1.5rem 1.25rem 2rem; }
+  .row { grid-template-columns: 1fr; gap: 0.5rem; }
+  .line { grid-template-columns: 1fr; gap: 0; }
+  .int summary { grid-template-columns: minmax(0, 1fr) auto; gap: 0; }
+  .int .dt { grid-column: 1 / -1; }
+  .prow { grid-template-columns: minmax(0, 1fr) auto 1rem; }
+  .ptags { display: none; }
+  .pn { grid-template-columns: 1fr; }
+}
+@media (pointer: coarse) { .ctl kbd { display: none; } } /* touch screens have no key to press */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation: none !important; }
+}
