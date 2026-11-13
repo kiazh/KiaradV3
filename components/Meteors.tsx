@@ -9,7 +9,7 @@ import { moonAt, nearCloud } from "./CloudBand";
 // CSS Custom Highlight API (no DOM changes, so React never notices), and pixel flames rise off it here.
 const FINE = 4; // css px per overlay pixel: flames are this fine, so they sit in proportion to body text
 const CELL = 8; // css px per sky cell: meteors keep the sky's grain and their original size
-const SPEED = 640, G = 300; // css px/s, px/s² (enough sag for a visible arc)
+const SPEED = 640; // css px/s, only used for how long an aimed meteor's tail takes to drain into its letter
 const FREE_SPEED = [520, 640], FREE_LIFE = [0.9, 1.3]; // short arcs, like the sketch: ~300-400 px left, curling down
 const TAIL = 34; // tail samples, one sky cell apart
 const SHOWER = [1, 4], GAP = [1.2, 3.2], REST = 30, FIRST = 4.5, AIM = 0.35; // count, s apart, s rest, s to first, P(a shower has a hit)
@@ -127,25 +127,26 @@ export function Meteors() {
       const sh = document.querySelector(".sheet")?.getBoundingClientRect();
       const inSheet = (x: number, y: number) => !!sh && x > sh.left - 16 && x < sh.right + 16 && y > sh.top - 16 && y < sh.bottom + 16;
       const range = aim ? pickLetter() : null;
-      let x0 = 0, y0 = 0, px = 0, py = 0;
+      const W = innerWidth, H = innerHeight, left = sh && W - sh.right > 120 ? sh.right + 40 : W + 10;
+      let hit: Meteor | null = null;
       if (range) {
-        // Aim: leave the moon on the line toward the letter, never from inside the page (back off toward the moon).
+        // Aim: start in the open sky right of the page like the others, and solve an exact falling arc onto the letter.
+        // Random start, steepness and start angle, so every hit has its own arc length and curl.
         const b = range.getBoundingClientRect();
-        px = b.left + b.width / 2; py = b.top + b.height * 0.45;
-        const d = Math.hypot(px - m.x, py - m.y) || 1, ux = (px - m.x) / d, uy = (py - m.y) / d;
-        let off = m.r + rand(20, 60);
-        while (off > m.r && inSheet(m.x + ux * off, m.y + uy * off)) off -= 8;
-        x0 = m.x + ux * off; y0 = m.y + uy * off;
+        const px = b.left + b.width / 2, py = b.top + b.height * 0.45;
+        for (let i = 0; i < 12 && !hit; i++) {
+          const x0 = rand(left, Math.max(left, W - 30)), dx = x0 - px, k = rand(0.15, 0.75), y0 = py - dx * k; // k: drop per px across
+          if (y0 < 12 || inSheet(x0, y0) || Math.hypot(x0 - m.x, y0 - m.y) < m.r + 12) continue;
+          const dy = py - y0, a0 = Math.min(rand(0, 14) * Math.PI / 180, Math.atan(k * 0.9)); // start angle: never above level
+          const T = Math.min(1.8, Math.max(0.5, Math.hypot(dx, dy) * 1.1 / rand(480, 720)));
+          const vx = -dx / T, vy = (dx / T) * Math.tan(a0), g = (2 * (dy - vy * T)) / (T * T); // lands exactly on the letter
+          hit = { x: x0, y: y0, vx, vy, g, t0: now, life: T, range };
+        }
       }
-      // Skip the hit if the moon is behind the page (narrow screens) or the letter is so far below it the path would look vertical.
-      if (range && !inSheet(x0, y0) && py > y0 && py - y0 < 1.1 * (x0 - px)) {
-        // Fall along an exact gravity arc onto the letter, with no more gravity than keeps it heading down from the start.
-        const T = Math.min(1.5, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED)), g = Math.min(G, (py - y0) / (T * T));
-        meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * g * T * T) / T, g, t0: now, life: T, range });
-      } else {
+      if (hit) meteors.push(hit);
+      else {
         // Like a sketch of falling stars: each starts somewhere in the open sky right of the page, from the moon's
         // height down to the lower screen, leaves almost level, and curls down to a set end angle as it goes behind the page.
-        const W = innerWidth, H = innerHeight, left = sh && W - sh.right > 120 ? sh.right + 40 : W + 10;
         let sx = 0, sy = 0, ok = false;
         for (let i = 0; i < 12 && !ok; i++) {
           sx = rand(left, Math.max(left, W - 30)); sy = rand(Math.max(20, m.y - m.r), H * 0.8);
