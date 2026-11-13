@@ -123,6 +123,7 @@ export function Meteors() {
     // (phones), the radiant moves just off the top-right corner so the direction never flips.
     const radiant = () => (moonAt.x > innerWidth / 2 ? moonAt : { x: innerWidth + 40, y: moonAt.y > 0 ? moonAt.y : innerHeight * 0.12, r: 0 });
     const launch = (aim: boolean) => {
+      if (document.documentElement.dataset.theme === "day") return; // no shooting stars in daylight
       const now = performance.now() / 1000, m = radiant();
       const sh = document.querySelector(".sheet")?.getBoundingClientRect();
       const inSheet = (x: number, y: number) => !!sh && x > sh.left - 16 && x < sh.right + 16 && y > sh.top - 16 && y < sh.bottom + 16;

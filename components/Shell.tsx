@@ -1,5 +1,6 @@
 import { CloudBand } from "./CloudBand";
 import { Meteors } from "./Meteors";
+import { ThemeToggle } from "./ThemeToggle";
 import { SITE_SKY, type Sky } from "../lib/sky";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { projects } from "../lib/projects";
@@ -22,7 +23,7 @@ export function Shell({ children, sky = SITE_SKY }: { children: React.ReactNode;
     <div className="site">
       <div className="progress" aria-hidden="true" />
       <CloudBand sky={sky} />
-      <div className="controls"><CommandPalette items={ITEMS} /></div>
+      <div className="controls"><ThemeToggle /><CommandPalette items={ITEMS} /></div>
       {children}
       {sky.meteors && <Meteors />}
     </div>

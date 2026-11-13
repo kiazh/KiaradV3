@@ -26,9 +26,23 @@ const MOON_TILT = (38 * Math.PI) / 180; // the lit limb faces down and to the ri
 const SYNODIC = 29.530588853; // days
 
 const rgb32 = (c: number[]) => (255 << 24) | (c[2] << 16) | (c[1] << 8) | c[0]; // little-endian RGBA
-// Night only. Entry 3 is the page colour (--bg).
-const PAL = [oklch(0.1, 0.04, 270), oklch(0.15, 0.06, 268), oklch(0.21, 0.07, 264), oklch(0.3, 0.07, 259), oklch(0.4, 0.085, 252), oklch(0.5, 0.085, 245)].map(rgb32);
+// Sky palettes, dark to light; entry 3 is the page colour (--bg). Kept as oklch so night -> day can be blended,
+// passing through a short dawn. Blended in oklab (Cartesian), so hues never swing the long way round.
+type LCH = [number, number, number];
+const NIGHT: LCH[] = [[0.1, 0.04, 270], [0.15, 0.06, 268], [0.21, 0.07, 264], [0.3, 0.07, 259], [0.4, 0.085, 252], [0.5, 0.085, 245]];
+const DAWN: LCH[] = [[0.32, 0.08, 300], [0.44, 0.1, 330], [0.57, 0.12, 15], [0.68, 0.12, 45], [0.79, 0.1, 65], [0.88, 0.06, 80]];
+const DAY: LCH[] = [[0.58, 0.12, 246], [0.65, 0.11, 242], [0.72, 0.095, 238], [0.8, 0.07, 232], [0.9, 0.035, 228], [0.97, 0.012, 220]];
+const lab = ([l, c, h]: LCH) => [l, c * Math.cos((h * Math.PI) / 180), c * Math.sin((h * Math.PI) / 180)];
+const mixPal = (A: LCH[], B: LCH[], t: number) => A.map((a, i) => {
+  const p = lab(a), q = lab(B[i]), L = p[0] + (q[0] - p[0]) * t, x = p[1] + (q[1] - p[1]) * t, y = p[2] + (q[2] - p[2]) * t;
+  return rgb32(oklch(L, Math.hypot(x, y), (Math.atan2(y, x) * 180) / Math.PI));
+});
+/** The sky palette at day-ness k (0 night, 1 day). */
+const palAt = (k: number) => (k < 0.5 ? mixPal(NIGHT, DAWN, k * 2) : mixPal(DAWN, DAY, k * 2 - 1));
+const DAY_MS = 1600; // the night <-> day transition
 const STAR = rgb32(oklch(0.94, 0.03, 230));
+// Sun: white core, pale gold, a deeper gold rim.
+const SUN = [oklch(0.99, 0.04, 95), oklch(0.95, 0.1, 90), oklch(0.88, 0.15, 80)].map(rgb32);
 // Moon: bright outer limb, a softer band toward the terminator, darker craters. No earthshine: the dark side is just sky.
 const MOON_HI = rgb32(oklch(0.93, 0.015, 235)), MOON_MID = rgb32(oklch(0.84, 0.02, 238)), MOON_LO = rgb32(oklch(0.72, 0.025, 240));
 const G0 = 0.12, G1 = 0.48, K = 0.3; // sky gradient (dark at the top, lighter toward the bottom), cloud strength
@@ -62,6 +76,17 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
     let cols = 0, rows = 0, img = ctx.createImageData(1, 1), buf = new Uint32Array(img.data.buffer);
     let cloud = new Float32Array(0), far = new Float32Array(0), rim = new Float32Array(0); // cached per cell; the expensive part
     let mx = 0, my = 0;
+    // Day-ness: k eases from k0 toward the target over DAY_MS. The moon sets along an arc to the right
+    // while the sun rises along the same arc from behind the page, as if the sky turned about a point below the screen.
+    const isDay = () => document.documentElement.dataset.theme === "day";
+    let k = isDay() ? 1 : 0, k0 = k, kTo = k, kT0 = 0, PAL = palAt(k);
+    let lx = 0, ly = 0, smx = 0, smy = 0, ssx = 0, ssy = 0; // light source, moon centre, sun centre (cells)
+    const bodies = () => {
+      const P = rows * 0.8, th = (62 * Math.PI) / 180;
+      const at = (a: number): [number, number] => [mx + P * Math.sin(a), my + P * (1 - Math.cos(a))];
+      [smx, smy] = at(k * th); [ssx, ssy] = at((k - 1) * th);
+      [lx, ly] = k < 0.5 ? [smx, smy] : [ssx, ssy];
+    };
     let t = 5, last = 0, lastBase = -1e9, raf = 0, done = 0; // done: rows recomputed so far in the current pass
     let tx = -99, ty = -99, hx = -99, hy = -99, heat = 0, lastMove = -1e9;
     const drops: Drop[] = [];
@@ -82,7 +107,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
         if (cloud[i] < 0.05) { rim[i] = 0; continue; }
         // Lit edge: this cell has cloud but the cell four steps toward the light has less. Light is the moon, else straight up.
         let ux = 0, uy = -1;
-        if (o.moon) { const dx = mx - x, dy = my - y, d = Math.hypot(dx, dy) || 1; ux = dx / d; uy = dy / d; }
+        if (o.moon) { const dx = lx - x, dy = ly - y, d = Math.hypot(dx, dy) || 1; ux = dx / d; uy = dy / d; }
         const jx = Math.min(cols - 1, Math.max(0, Math.round(x + ux * 4))), jy = Math.min(rows - 1, Math.max(0, Math.round(y + uy * 4)));
         rim[i] = Math.min(1, Math.max(0, (cloud[i] - cloud[jy * cols + jx]) * 1.4)) * Math.min(1, cloud[i] * 2); // wide, soft, only on real cloud
       }
@@ -103,6 +128,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
       const n = PAL.length;
       const parting = heat > 0.01;
       const live = drops.map((r) => ({ x: r.x, y: r.y, k: 1 - (t - r.t0) / DROP_LIFE })); // k: 1 -> 0 as it dissolves
+      const mVis = 1 - Math.min(1, k * 1.6), sVis = Math.min(1, Math.max(0, (k - 0.35) / 0.65)); // each body dithers in and out
       for (let y = y0; y < y1; y++) {
         const yy = y / rows, a = K, b = G0 + G1 * yy; // clouds run all the way to the bottom edge
         for (let x = x0; x < x1; x++) {
@@ -116,8 +142,8 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
           let v = b + a * c + lift;
           if (o.rims) v += 0.15 * rim[i];
           let moonPx = 0, behindMoon = false;
-          if (o.moon) {
-            const dx = x - mx, dy = y - my, d2 = dx * dx + dy * dy;
+          if (o.moon && th < mVis) {
+            const dx = x - smx, dy = y - smy, d2 = dx * dx + dy * dy;
             if (d2 < HALO_R * HALO_R) {
               const d = Math.sqrt(d2);
               if (d < R) {
@@ -134,6 +160,18 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
               } else v += haloK * Math.exp(-(d - R) / 6);
             }
           }
+          if (o.moon && sVis > 0) {
+            // The sun: a round pixel disc between the layers like the moon, in a wide warm glow that brightens the sky.
+            const dx = x - ssx, dy = y - ssy, d = Math.sqrt(dx * dx + dy * dy), Rs = R * 0.8;
+            if (d < Rs * 7) {
+              if (d < Rs && th < sVis) {
+                behindMoon = true;
+                if (near > 0.1 + th * 0.4) v = b + a * near + 0.35 * Math.min(1, near * 2) + lift; // cloud in front, sunlit
+                else moonPx = SUN[d < Rs * 0.55 ? 0 : d < Rs - 1.2 - th ? 1 : 2];
+              }
+              v += sVis * 0.28 * Math.exp(-Math.max(0, d - Rs) / (Rs * 1.1));
+            }
+          }
           for (const w of live) {
             const dx = x - w.x, dy = y - w.y, d2 = dx * dx + dy * dy;
             // Ordered dissolve: each pixel switches off when the drop's strength falls below its Bayer threshold.
@@ -142,7 +180,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
           if (moonPx) { buf[i] = moonPx; continue; }
           let out = PAL[Math.min(n - 1, Math.max(0, Math.floor(v * (n - 1) + th)))];
           // Stars sit in the dark upper sky and twinkle slowly; clouds and moonlight swallow them.
-          if (!behindMoon && yy < 0.5 && v < 0.3 && hash(x, y, 9) < 0.004 && Math.sin(t * 1.2 + hash(x, y, 11) * 6.283) > -0.3) out = STAR;
+          if (!behindMoon && yy < 0.5 && v < 0.3 && hash(x, y, 9) < 0.004 && hash(x, y, 13) >= k * 1.6 && Math.sin(t * 1.2 + hash(x, y, 11) * 6.283) > -0.3) out = STAR; // daylight fades them out one by one
           buf[i] = out;
         }
       }
@@ -166,6 +204,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
       if (fit >= 6) { R = Math.min(R0, fit); mx = (w - gutter / 2) / cell; my = Math.max(R * 2 + 4, rows * 0.16); }
       else { R = Math.max(4, Math.min(R0, Math.floor((top * 0.4) / cell))); mx = R + 3; my = top / 2 / cell; }
       HALO_R = R * 4;
+      bodies();
       moonAt.x = mx * cell; moonAt.y = my * cell; moonAt.r = o.moon ? R * cell : 0;
       nearCloud.cols = cols; nearCloud.rows = rows; nearCloud.f = cloud;
       return true;
@@ -177,16 +216,22 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
       last = now; t += dt;
       const want = now - lastMove < IDLE_MS ? 1 : 0;
       heat += (want - heat) * (1 - Math.exp(-dt * (want > heat ? SCALE_LAMBDA : FADE_LAMBDA)));
-      const k = 1 - Math.exp(-dt * POS_LAMBDA);
+      const kp = 1 - Math.exp(-dt * POS_LAMBDA);
       const phx = hx, phy = hy;
-      hx += (tx - hx) * k; hy += (ty - hy) * k;
+      hx += (tx - hx) * kp; hy += (ty - hy) * kp;
       while (drops.length && t - drops[0].t0 >= DROP_LIFE) drops.shift();
+      const turning = k !== kTo;
+      if (turning) { // night <-> day: ease in-out, so the moon and sun start and settle gently
+        const p = Math.min(1, (now - kT0) / DAY_MS), e = p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
+        k = p >= 1 ? kTo : k0 + (kTo - k0) * e;
+        PAL = palAt(k); bodies();
+      }
       // Advance the rolling recompute to where it should be at this point of the pass; compose when a pass completes.
       const target = Math.min(rows, Math.ceil(((now - lastBase) / BASE_MS) * rows));
       if (target > done) { baseRows(done, target); done = target; }
       const fresh = done >= rows;
       if (fresh) { done = 0; lastBase = now; }
-      if (fresh) compose(); // a full pass
+      if (fresh || turning) compose(); // a full pass, or every frame while the sky turns
       else if (heat > 0.01 || drops.length) {
         // Only the cursor's pool (where it was and where it is now) and the drops changed.
         let rx0 = cols, ry0 = rows, rx1 = 0, ry1 = 0;
@@ -220,12 +265,19 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
     repaint();
     cv.classList.add("ready");
     addEventListener("resize", resize);
+    // The theme toggle flips <html data-theme>; turn the sky toward it from wherever it is now.
+    const theme = new MutationObserver(() => {
+      kTo = isDay() ? 1 : 0; k0 = k; kT0 = performance.now();
+      if (still) { k = kTo; PAL = palAt(k); bodies(); repaint(); }
+    });
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     if (!still) {
       raf = requestAnimationFrame(loop);
       addEventListener("pointermove", move);
       addEventListener("pointerdown", down);
     }
     return () => {
+      theme.disconnect();
       cancelAnimationFrame(raf); cancelAnimationFrame(pending);
       removeEventListener("resize", resize);
       removeEventListener("pointermove", move);
