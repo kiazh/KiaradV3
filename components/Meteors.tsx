@@ -119,26 +119,34 @@ export function Meteors() {
     const radiant = () => (moonAt.x >= 0 ? moonAt : { x: innerWidth * 0.85, y: innerHeight * 0.15, r: 0 });
     const launch = (aim: boolean) => {
       const now = performance.now() / 1000, W = innerWidth, H = innerHeight, m = radiant();
+      const sh = document.querySelector(".sheet")?.getBoundingClientRect();
+      const inSheet = (x: number, y: number) => !!sh && x > sh.left - 16 && x < sh.right + 16 && y > sh.top - 16 && y < sh.bottom + 16;
       const range = aim ? pickLetter() : null;
+      let x0 = 0, y0 = 0, px = 0, py = 0;
       if (range) {
-        // Aim: leave the moon on the line toward the letter and fall along an exact gravity arc onto it.
+        // Aim: leave the moon on the line toward the letter, never from inside the page (back off toward the moon).
         const b = range.getBoundingClientRect();
-        const px = b.left + b.width / 2, py = b.top + b.height * 0.45;
-        const d = Math.hypot(px - m.x, py - m.y) || 1, off = m.r + rand(20, 60);
-        const x0 = m.x + ((px - m.x) / d) * off, y0 = m.y + ((py - m.y) / d) * off;
+        px = b.left + b.width / 2; py = b.top + b.height * 0.45;
+        const d = Math.hypot(px - m.x, py - m.y) || 1, ux = (px - m.x) / d, uy = (py - m.y) / d;
+        let off = m.r + rand(20, 60);
+        while (off > m.r && inSheet(m.x + ux * off, m.y + uy * off)) off -= 8;
+        x0 = m.x + ux * off; y0 = m.y + uy * off;
+      }
+      if (range && !inSheet(x0, y0)) { // if the moon itself is behind the page (narrow screens), skip the hit this time
+        // Fall along an exact gravity arc onto the letter.
         const T = Math.min(1.5, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED));
         meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * G * T * T) / T, t0: now, life: T, range });
       } else {
         // Fan out from the moon toward a random patch of open sky (not under the page), starting a little way out.
-        const sh = document.querySelector(".sheet")?.getBoundingClientRect();
         let tx = W * 0.5, ty = H * 0.5;
         for (let i = 0; i < 30; i++) {
           const x = rand(0, W), y = rand(0, H * 0.75);
-          const open = !sh || x < sh.left - 16 || x > sh.right + 16 || y < sh.top - 16 || y > sh.bottom + 16;
-          if (open && Math.hypot(x - m.x, y - m.y) > m.r + 180) { tx = x; ty = y; break; }
+          if (!inSheet(x, y) && Math.hypot(x - m.x, y - m.y) > m.r + 180) { tx = x; ty = y; break; }
         }
-        const a = Math.atan2(ty - m.y, tx - m.x);
-        const off = m.r + rand(30, 160), ux = Math.cos(a), uy = Math.sin(a);
+        const a = Math.atan2(ty - m.y, tx - m.x), ux = Math.cos(a), uy = Math.sin(a);
+        let off = m.r + rand(30, 160);
+        while (off > m.r && inSheet(m.x + ux * off, m.y + uy * off)) off -= 8; // never spawn inside the page box
+        if (inSheet(m.x + ux * off, m.y + uy * off)) return; // moon is behind the page: skip this one
         meteors.push({ x: m.x + ux * off, y: m.y + uy * off, vx: ux * SPEED, vy: uy * SPEED, t0: now, life: rand(0.9, FREE_LIFE), range: null });
       }
       kick();
