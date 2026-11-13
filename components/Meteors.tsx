@@ -138,13 +138,13 @@ export function Meteors() {
         x0 = m.x + ux * off; y0 = m.y + uy * off;
       }
       // Skip the hit if the moon is behind the page (narrow screens) or the letter is so far below it the path would look vertical.
-      if (range && !inSheet(x0, y0) && py - y0 < 1.1 * (x0 - px)) {
-        // Fall along an exact gravity arc onto the letter.
-        const T = Math.min(1.5, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED));
-        meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * G * T * T) / T, g: G, t0: now, life: T, range });
+      if (range && !inSheet(x0, y0) && py > y0 && py - y0 < 1.1 * (x0 - px)) {
+        // Fall along an exact gravity arc onto the letter, with no more gravity than keeps it heading down from the start.
+        const T = Math.min(1.5, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED)), g = Math.min(G, (py - y0) / (T * T));
+        meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * g * T * T) / T, g, t0: now, life: T, range });
       } else {
         // A loose radiant: each one appears somewhere around the moon's left side (a few a little lower),
-        // heads left anywhere from slightly up to gently down, and bends with its own amount of gravity.
+        // heads left and always a little down, and bends with its own amount of gravity.
         let sx = 0, sy = 0, ok = false;
         for (let i = 0; i < 12 && !ok; i++) {
           const p = rand(110, 250) * Math.PI / 180, o = m.r + rand(12, 140); // 180° is straight left of the moon
@@ -152,7 +152,7 @@ export function Meteors() {
           ok = !inSheet(sx, sy); // never spawn inside the page box
         }
         if (!ok) return; // moon is behind the page (narrow screens): skip this one
-        const deg = rand(-20, 32), a = deg * Math.PI / 180, v = rand(FREE_SPEED[0], FREE_SPEED[1]);
+        const deg = rand(5, 30), a = deg * Math.PI / 180, v = rand(FREE_SPEED[0], FREE_SPEED[1]);
         const g = rand(70, 240) * (1 - Math.max(0, deg) / 48); // steeper starts get less bend, so the end never turns vertical
         meteors.push({ x: sx, y: sy, vx: -Math.cos(a) * v, vy: Math.sin(a) * v, g, t0: now, life: rand(FREE_LIFE[0], FREE_LIFE[1]), range: null });
       }
