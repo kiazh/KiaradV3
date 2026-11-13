@@ -3,18 +3,18 @@
 import { useEffect, useRef } from "react";
 import { BAYER, oklch } from "../lib/field";
 
-// Shooting stars, drawn above everything. They come in showers of 1-4, a beat apart, then the sky rests.
-// Some aim at a real letter on the page and set it alight: the letter itself is recoloured through the
+// Shooting stars, drawn above everything. Showers of 1-4, well spaced, always from the left, then the sky rests.
+// Now and then one lands on a real letter and sets it alight: the letter itself is recoloured through the
 // CSS Custom Highlight API (no DOM changes, so React never notices), and pixel flames rise off it here.
-const FINE = 4; // css px per overlay pixel: flames are this fine, so they sit in proportion to body text
-const CELL = 8; // css px per sky cell: meteors keep the sky's grain
-const SPEED = 80, G = 30, TAIL = 34, FREE_LIFE = 1.2; // sky cells/s, cells/s² (bends the path into an arc), tail samples, s
-const SHOWER = [1, 4], GAP = [0.35, 1.1], REST = 30, FIRST = 4.5, AIM = 0.65; // count, s between, s rest, s to first, P(aim)
-const FLASH = 0.15, BURN = 2.4, COOL = 1.2; // s: white-hot impact, burning, cooling back to normal
+const FINE = 4; // css px per overlay pixel: one-pixel-wide streaks and flames at this grain read as fine, not chunky
+const SPEED = 620, G = 90, FREE_LIFE = [1.0, 1.6]; // css px/s, px/s² (a gentle sag into an arc), s
+const TAIL = 260; // css px of tail behind the head
+const SHOWER = [1, 4], GAP = [1.2, 3.2], REST = 30, FIRST = 4.5, AIM = 0.35; // count, s apart, s rest, s to first, P(a shower has a hit)
+const FLASH = 0.15, BURN = 1.8, COOL = 1; // s: white-hot impact, burning, cooling back to normal
 
 const rgb32 = (c: number[]) => (255 << 24) | (c[2] << 16) | (c[1] << 8) | c[0];
-// The sky's meteor ramp, except the tail now cools to a dim ember: above the page, the sky's blue read as stray squares.
-const MET = [oklch(0.98, 0.04, 95), oklch(0.9, 0.14, 92), oklch(0.78, 0.15, 75), oklch(0.5, 0.11, 45)].map(rgb32);
+// Head to tail: white, pale gold, gold, then a dim amber the dither thins out into nothing.
+const MET = [oklch(0.99, 0.02, 95), oklch(0.93, 0.09, 92), oklch(0.82, 0.13, 82), oklch(0.62, 0.11, 60)].map(rgb32);
 // Fire: white-gold, gold, amber, orange, ember red, ash.
 const FIRE = [oklch(0.98, 0.04, 95), oklch(0.9, 0.14, 92), oklch(0.8, 0.16, 72), oklch(0.68, 0.18, 48), oklch(0.55, 0.17, 35), oklch(0.38, 0.06, 30)].map(rgb32);
 // A hit letter: white-hot flash, flickers gold/orange while burning, cools through ember red, then back to its own colour.
@@ -86,13 +86,6 @@ export function Meteors() {
       x = Math.round(x); y = Math.round(y);
       if (x >= 0 && y >= 0 && x < cols && y < rows && f > BAYER[(y & 3) * 4 + (x & 3)]) buf[y * cols + x] = col;
     };
-    // One sky cell = a 2x2 block, dithered on the sky's grid so meteors look exactly like they did in the sky.
-    const plotCell = (cx: number, cy: number, col: number, f: number) => {
-      cx = Math.round(cx); cy = Math.round(cy);
-      if (f <= BAYER[(cy & 3) * 4 + (cx & 3)]) return;
-      const s = CELL / FINE;
-      for (let oy = 0; oy < s; oy++) for (let ox = 0; ox < s; ox++) plot(cx * s + ox, cy * s + oy, col, 1);
-    };
 
     const ignite = (range: Range, now: number) => {
       const b = range.getBoundingClientRect();
@@ -100,26 +93,26 @@ export function Meteors() {
       const big = b.height > 36;
       burns.push({ range, t0: now, big, flick: 1, next: now });
       const cx = b.left + b.width / 2, cy = b.top + b.height * 0.45;
-      for (let i = 0; i < (big ? 22 : 14); i++) { // the impact: a splash of sparks thrown up and out, falling back
-        const a = rand(-Math.PI * 0.95, -Math.PI * 0.05), v = rand(120, big ? 380 : 300);
-        sparks.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 520, t0: now, life: rand(0.3, 0.65), c0: 0, size: big ? 2 : 1 });
+      for (let i = 0; i < (big ? 12 : 8); i++) { // the impact: a small splash of sparks thrown up and out, falling back
+        const a = rand(-Math.PI * 0.9, -Math.PI * 0.1), v = rand(100, big ? 300 : 240);
+        sparks.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 520, t0: now, life: rand(0.25, 0.55), c0: 0, size: big ? 2 : 1 });
       }
     };
 
-    const launch = (tryAim: boolean) => {
-      const now = performance.now() / 1000, W = innerWidth / CELL, H = innerHeight / CELL;
-      const range = tryAim ? pickLetter() : null;
-      const dir = Math.random() < 0.5 ? -1 : 1;
+    // Everything below is in css px. Shooting stars always travel left to right, sagging gently downward.
+    const launch = (aim: boolean) => {
+      const now = performance.now() / 1000, W = innerWidth, H = innerHeight;
+      const range = aim ? pickLetter() : null;
       if (range) {
-        // Aim: enter from above the screen and fall along an exact gravity arc onto the letter.
+        // Aim: start up and to the left of the letter and fall along an exact gravity arc onto it.
         const b = range.getBoundingClientRect();
-        const px = (b.left + b.width / 2) / CELL, py = (b.top + b.height * 0.45) / CELL;
-        const x0 = px - dir * Math.max(W * rand(0.25, 0.5), rand(28, 40)), y0 = -3; // a floor, so phones still get a slant, not a plumb line
-        const T = Math.min(1.4, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED));
+        const px = b.left + b.width / 2, py = b.top + b.height * 0.45;
+        const x0 = px - Math.max(W * rand(0.3, 0.55), 240), y0 = Math.max(-20, py - rand(180, 320));
+        const T = Math.min(1.5, Math.max(0.7, Math.hypot(px - x0, py - y0) / SPEED));
         meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * G * T * T) / T, t0: now, life: T, range });
       } else {
-        const x0 = W * (dir < 0 ? rand(0.35, 0.95) : rand(0.05, 0.65)), y0 = H * rand(0.03, 0.28), a = (rand(12, 26) * Math.PI) / 180;
-        meteors.push({ x: x0, y: y0, vx: Math.cos(a) * dir * SPEED, vy: Math.sin(a) * SPEED, t0: now, life: FREE_LIFE, range: null });
+        const a = (rand(8, 24) * Math.PI) / 180;
+        meteors.push({ x: W * rand(-0.05, 0.5), y: H * rand(0.02, 0.4), vx: Math.cos(a) * SPEED, vy: Math.sin(a) * SPEED, t0: now, life: rand(FREE_LIFE[0], FREE_LIFE[1]), range: null });
       }
       kick();
     };
@@ -127,9 +120,10 @@ export function Meteors() {
     const shower = () => {
       if (document.hidden) { timers.push(setTimeout(shower, 5000)); return; } // nobody is watching; try again shortly
       const n = SHOWER[0] + Math.floor(Math.random() * (SHOWER[1] - SHOWER[0] + 1));
+      const hit = Math.random() < AIM ? Math.floor(Math.random() * n) : -1; // at most one per shower lands on a letter
       let at = 0;
       for (let j = 0; j < n; j++) {
-        timers.push(setTimeout(() => launch(j === 0 || Math.random() < AIM), at * 1000)); // the first always tries to land
+        timers.push(setTimeout(() => launch(j === hit), at * 1000));
         at += rand(GAP[0], GAP[1]);
       }
       timers.push(setTimeout(shower, (at + REST) * 1000));
@@ -146,24 +140,20 @@ export function Meteors() {
         if (m.range && !m.hit && age >= m.life) { m.hit = true; ignite(m.range, now); }
         // Aimed meteors stop at the letter and their tail drains into it; free ones fade out mid-flight.
         if (age > (m.range ? m.life + TAIL / SPEED : m.life)) { meteors.splice(j, 1); continue; }
-        const fade = Math.min(1, age / 0.12) * (m.range ? 1 : Math.min(1, (m.life - age) / 0.4));
-        const at = (q: number) => [m.x + m.vx * q, m.y + m.vy * q + 0.5 * G * q * q];
-        for (let k = TAIL - 1; k >= 0; k--) {
-          const q = age - k / SPEED;
+        const fade = Math.min(1, age / 0.15) * (m.range ? 1 : Math.min(1, (m.life - age) / 0.5));
+        const at = (q: number) => [(m.x + m.vx * q) / FINE, (m.y + m.vy * q + 0.5 * G * q * q) / FINE];
+        // A one-pixel line: sample the arc back in time, one fine pixel per step, thinning out toward the end.
+        const steps = TAIL / FINE, dq = FINE / SPEED;
+        for (let k = steps - 1; k >= 0; k--) {
+          const q = age - k * dq;
           if (q < 0 || q > m.life) continue;
-          const [x, y] = at(q), r = k / TAIL, f = fade * (1 - r * r * 0.9);
-          const col = MET[r < 0.08 ? 0 : r < 0.35 ? 1 : r < 0.65 ? 2 : 3];
-          plotCell(x, y, col, f);
-          if (r < 0.5) plotCell(x, y + 1, col, f * 0.9);
+          const [x, y] = at(q), r = k / steps;
+          plot(x, y, MET[r < 0.04 ? 0 : r < 0.2 ? 1 : r < 0.5 ? 2 : 3], fade * (1 - r) ** 1.5);
         }
-        if (age < m.life) { // the head: a 2x2 white-gold core in a one-cell yellow glow, corners rounded
+        if (age < m.life) { // the head: one white pixel with a faint gold cross
           const [hx, hy] = at(age);
-          for (let oy = -1; oy <= 2; oy++)
-            for (let ox = -1; ox <= 2; ox++) {
-              const ex = ox < 0 || ox > 1, ey = oy < 0 || oy > 1;
-              if (ex && ey) continue;
-              plotCell(hx + ox, hy + oy, ex || ey ? MET[1] : MET[0], ex || ey ? fade : 1);
-            }
+          plot(hx, hy, MET[0], 1);
+          for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) plot(hx + ox, hy + oy, MET[1], fade * 0.55);
         }
       }
 
