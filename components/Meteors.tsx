@@ -3,12 +3,13 @@
 import { useEffect, useRef } from "react";
 import { BAYER, oklch } from "../lib/field";
 
-// Shooting stars, drawn above everything. Showers of 1-4, well spaced, always from the left, then the sky rests.
+// Shooting stars, drawn above everything. Showers of 1-4, well spaced, always flying right to left, then the sky rests.
 // Now and then one lands on a real letter and sets it alight: the letter itself is recoloured through the
 // CSS Custom Highlight API (no DOM changes, so React never notices), and pixel flames rise off it here.
-const FINE = 4; // css px per overlay pixel: one-pixel-wide streaks and flames at this grain read as fine, not chunky
-const SPEED = 620, G = 90, FREE_LIFE = [1.0, 1.6]; // css px/s, px/s² (a gentle sag into an arc), s
-const TAIL = 260; // css px of tail behind the head
+const FINE = 4; // css px per overlay pixel: flames are this fine, so they sit in proportion to body text
+const CELL = 8; // css px per sky cell: meteors keep the sky's grain and their original size
+const SPEED = 640, G = 240, FREE_LIFE = 1.2; // css px/s, px/s² (bends the path into an arc), s: the sky's original values
+const TAIL = 34; // tail samples, one sky cell apart
 const SHOWER = [1, 4], GAP = [1.2, 3.2], REST = 30, FIRST = 4.5, AIM = 0.35; // count, s apart, s rest, s to first, P(a shower has a hit)
 const FLASH = 0.15, BURN = 1.8, COOL = 1; // s: white-hot impact, burning, cooling back to normal
 
@@ -86,6 +87,13 @@ export function Meteors() {
       x = Math.round(x); y = Math.round(y);
       if (x >= 0 && y >= 0 && x < cols && y < rows && f > BAYER[(y & 3) * 4 + (x & 3)]) buf[y * cols + x] = col;
     };
+    // One sky cell = a 2x2 block, dithered on the sky's grid, so meteors look exactly like they did in the sky.
+    const plotCell = (cx: number, cy: number, col: number, f: number) => {
+      cx = Math.round(cx); cy = Math.round(cy);
+      if (f <= BAYER[(cy & 3) * 4 + (cx & 3)]) return;
+      const s = CELL / FINE;
+      for (let oy = 0; oy < s; oy++) for (let ox = 0; ox < s; ox++) plot(cx * s + ox, cy * s + oy, col, 1);
+    };
 
     const ignite = (range: Range, now: number) => {
       const b = range.getBoundingClientRect();
@@ -99,20 +107,20 @@ export function Meteors() {
       }
     };
 
-    // Everything below is in css px. Shooting stars always travel left to right, sagging gently downward.
+    // Everything below is in css px. Shooting stars always fly right to left, falling along a gravity arc.
     const launch = (aim: boolean) => {
       const now = performance.now() / 1000, W = innerWidth, H = innerHeight;
       const range = aim ? pickLetter() : null;
       if (range) {
-        // Aim: start up and to the left of the letter and fall along an exact gravity arc onto it.
+        // Aim: start up and to the right of the letter and fall along an exact gravity arc onto it.
         const b = range.getBoundingClientRect();
         const px = b.left + b.width / 2, py = b.top + b.height * 0.45;
-        const x0 = px - Math.max(W * rand(0.3, 0.55), 240), y0 = Math.max(-20, py - rand(180, 320));
+        const x0 = px + Math.max(W * rand(0.3, 0.55), 240), y0 = Math.max(-20, py - rand(180, 320));
         const T = Math.min(1.5, Math.max(0.7, Math.hypot(px - x0, py - y0) / SPEED));
         meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * G * T * T) / T, t0: now, life: T, range });
       } else {
-        const a = (rand(8, 24) * Math.PI) / 180;
-        meteors.push({ x: W * rand(-0.05, 0.5), y: H * rand(0.02, 0.4), vx: Math.cos(a) * SPEED, vy: Math.sin(a) * SPEED, t0: now, life: rand(FREE_LIFE[0], FREE_LIFE[1]), range: null });
+        const a = (rand(12, 26) * Math.PI) / 180; // the sky's original angles
+        meteors.push({ x: W * rand(0.35, 0.95), y: H * rand(0.03, 0.28), vx: -Math.cos(a) * SPEED, vy: Math.sin(a) * SPEED, t0: now, life: FREE_LIFE, range: null });
       }
       kick();
     };
@@ -139,21 +147,27 @@ export function Meteors() {
         const m = meteors[j], age = now - m.t0;
         if (m.range && !m.hit && age >= m.life) { m.hit = true; ignite(m.range, now); }
         // Aimed meteors stop at the letter and their tail drains into it; free ones fade out mid-flight.
-        if (age > (m.range ? m.life + TAIL / SPEED : m.life)) { meteors.splice(j, 1); continue; }
-        const fade = Math.min(1, age / 0.15) * (m.range ? 1 : Math.min(1, (m.life - age) / 0.5));
-        const at = (q: number) => [(m.x + m.vx * q) / FINE, (m.y + m.vy * q + 0.5 * G * q * q) / FINE];
-        // A one-pixel line: sample the arc back in time, one fine pixel per step, thinning out toward the end.
-        const steps = TAIL / FINE, dq = FINE / SPEED;
-        for (let k = steps - 1; k >= 0; k--) {
+        if (age > (m.range ? m.life + TAIL * CELL / SPEED : m.life)) { meteors.splice(j, 1); continue; }
+        const fade = Math.min(1, age / 0.12) * (m.range ? 1 : Math.min(1, (m.life - age) / 0.4));
+        const at = (q: number) => [(m.x + m.vx * q) / CELL, (m.y + m.vy * q + 0.5 * G * q * q) / CELL];
+        // The sky's original meteor: the tail traces the arc back in time, one cell per sample, two cells thick near the head.
+        const dq = CELL / SPEED;
+        for (let k = TAIL - 1; k >= 0; k--) {
           const q = age - k * dq;
           if (q < 0 || q > m.life) continue;
-          const [x, y] = at(q), r = k / steps;
-          plot(x, y, MET[r < 0.04 ? 0 : r < 0.2 ? 1 : r < 0.5 ? 2 : 3], fade * (1 - r) ** 1.5);
+          const [x, y] = at(q), r = k / TAIL, f = fade * (1 - r * r * 0.9); // stays solid most of the way, breaks up at the end
+          const col = MET[r < 0.08 ? 0 : r < 0.35 ? 1 : r < 0.65 ? 2 : 3];
+          plotCell(x, y, col, f);
+          if (r < 0.5) plotCell(x, y + 1, col, f * 0.9);
         }
-        if (age < m.life) { // the head: one white pixel with a faint gold cross
+        if (age < m.life) { // the head: a 2x2 white-gold core in a one-cell yellow glow, corners rounded
           const [hx, hy] = at(age);
-          plot(hx, hy, MET[0], 1);
-          for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) plot(hx + ox, hy + oy, MET[1], fade * 0.55);
+          for (let oy = -1; oy <= 2; oy++)
+            for (let ox = -1; ox <= 2; ox++) {
+              const ex = ox < 0 || ox > 1, ey = oy < 0 || oy > 1;
+              if (ex && ey) continue;
+              plotCell(hx + ox, hy + oy, ex || ey ? MET[1] : MET[0], ex || ey ? fade : 1);
+            }
         }
       }
 
