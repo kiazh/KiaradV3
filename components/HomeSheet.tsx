@@ -6,6 +6,7 @@ import { SpotifyNowPlaying } from "@/components/SpotifyNowPlaying";
 import { ScrambleText } from "@/components/ScrambleText"; // the original site's component, unchanged
 import { CopyEmail } from "./CopyEmail";
 import { Typed } from "./Typed";
+import { Star } from "./Star";
 import { Ext } from "./Ext";
 import { ProjectCover } from "./ProjectCover";
 import { Social } from "./Social";
@@ -28,7 +29,7 @@ export async function HomeSheet() {
       <SpotifyNowPlaying />
       <main className="sheet">
         <header>
-          <h1 className="rise" style={step(0)}><ScrambleText text="Kiarad" trigger="mount-then-hover" delayMs={120} as="span" /><span className="star" aria-hidden="true" /></h1>
+          <h1 className="rise" style={step(0)}><ScrambleText text="Kiarad" trigger="mount-then-hover" delayMs={120} as="span" /><Star /></h1>
           <p className="tag rise" style={step(1)}><Typed text={TAGLINE} /></p>
           <p className="contact">
             {RESUME && <a className="btn rise" style={step(2)} href={RESUME} {...ext}>Resume<Ext /></a>}
