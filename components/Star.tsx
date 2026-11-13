@@ -20,10 +20,11 @@ const PIXELS: Px[] = [
 
 const tone = (x: number, y: number) => Math.min(4, Math.max(Math.abs(x - 5), Math.abs(y - 5)));
 
-// Entrance arc, in em relative to the star's centre: from the top of the K, over the name, into the star.
+// Entrance arc, in em relative to the star's centre: from back and up of the K, over the name, into the star.
 // Quadratic Bezier sampled densely, snapped to the star's own pixel size, de-duplicated, so it reads as pixels.
+// --f is eased (t^0.6) so the head picks up speed as it falls in, like something thrown.
 const PX = 0.72 / 11; // one star pixel, in em
-const P0 = [-2.95, 0.2], P1 = [-1.5, -1.3], P2 = [0, 0];
+const P0 = [-3.45, -0.2], P1 = [-1.75, -1.5], P2 = [0, 0]; // starts back and up from the K
 const ARC = (() => {
   const seen = new Set<string>();
   const out: [number, number][] = [];
@@ -41,7 +42,7 @@ export function Star() {
     <span className="star" aria-hidden="true">
       <span className="arc">
         {ARC.map(([x, y], i) => (
-          <i key={i} style={{ "--x": x, "--y": y, "--f": i / ARC.length } as CSSProperties} />
+          <i key={i} style={{ "--x": x, "--y": y, "--f": ((i / ARC.length) ** 0.6).toFixed(3) } as CSSProperties} />
         ))}
       </span>
       <svg viewBox="0 0 11 11" shapeRendering="crispEdges">
