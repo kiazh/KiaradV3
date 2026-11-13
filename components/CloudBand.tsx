@@ -4,7 +4,10 @@ import { useEffect, useRef } from "react";
 import { BAYER, field, hash, oklch, smooth } from "../lib/field";
 import type { Sky } from "../lib/sky";
 
-const CELL = 8; // css px per sky pixel, the same on every screen
+const CELL = 8; // css px per sky pixel, the same on every screen...
+// ...up to this many cells. Past it (zoomed far out, or a huge window) cells grow, so the work stays bounded:
+// 2560x1440 is ~58k cells, 4K ~130k. At 25% zoom the viewport is 16x larger in css px and would be ~920k.
+const MAX_CELLS = 140_000;
 const BASE_MS = 83; // the sky drifts ~15px/s, so recomputing the clouds at ~12fps is invisible and 5x cheaper
 // Pointer timings come from the original site's CursorFollower: trail rate, fade rate and idle hold.
 const POS_LAMBDA = 6.3;
@@ -52,8 +55,8 @@ const moonPhase = (ms: number) => ((((ms / 86400000 + 2440587.5 - 2451550.1) / S
 
 /** Where the moon sits, in viewport css px (r = disc radius). Meteors use it as their shower's radiant. */
 export const moonAt = { x: -1, y: -1, r: 0 };
-/** The near cloud layer, per sky cell (8 css px), so meteors can pass behind clouds like the moon does. */
-export const nearCloud = { cols: 0, rows: 0, f: new Float32Array(0) };
+/** The near cloud layer, per sky cell (`cell` css px), so meteors can pass behind clouds like the moon does. */
+export const nearCloud = { cols: 0, rows: 0, cell: CELL, f: new Float32Array(0) };
 
 type Drop = { x: number; y: number; t0: number };
 
@@ -97,7 +100,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
     const tc = Math.cos(MOON_TILT), ts = Math.sin(MOON_TILT);
     const R0 = o.moonR ?? MOON_R;
     let R = R0, HALO_R = R * 4;
-    const cell = CELL, u = CELL;
+    let cell = CELL, u = CELL;
 
     // The cloud field is the expensive part. Rows are recomputed a slice per frame, spread evenly across
     // BASE_MS, so no single frame stalls (a full recompute in one frame took ~15-20ms on a 2560px window).
@@ -189,8 +192,10 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
 
     const size = () => {
       const w = innerWidth, h = probe.offsetHeight || innerHeight;
-      const c = Math.ceil(w / cell), r = Math.ceil(h / cell);
-      if (c === cols && r === rows) return false;
+      const cz = Math.max(CELL, 2 * Math.ceil(Math.sqrt((w * h) / MAX_CELLS) / 2)); // even, so meteors' half-cells stay whole px
+      const c = Math.ceil(w / cz), r = Math.ceil(h / cz);
+      if (c === cols && r === rows && cz === cell) return false;
+      cell = u = cz;
       cols = c; rows = r;
       cv.width = cols; cv.height = rows;
       // Exactly `cell` css px per cell, so every pixel block is the same size (a stretched canvas gives uneven blocks).
@@ -206,7 +211,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
       HALO_R = R * 4;
       bodies();
       moonAt.x = mx * cell; moonAt.y = my * cell; moonAt.r = o.moon ? R * cell : 0;
-      nearCloud.cols = cols; nearCloud.rows = rows; nearCloud.f = cloud;
+      nearCloud.cols = cols; nearCloud.rows = rows; nearCloud.cell = cell; nearCloud.f = cloud;
       return true;
     };
     const repaint = () => { baseNow(); compose(); };

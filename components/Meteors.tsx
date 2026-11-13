@@ -7,8 +7,8 @@ import { moonAt, nearCloud } from "./CloudBand";
 // Shooting stars, drawn above everything. Showers of 1-4, well spaced, radiating from the moon, then the sky rests.
 // Now and then one lands on a real letter and sets it alight: the letter itself is recoloured through the
 // CSS Custom Highlight API (no DOM changes, so React never notices), and pixel flames rise off it here.
-const FINE = 4; // css px per overlay pixel: flames are this fine, so they sit in proportion to body text
-const CELL = 8; // css px per sky cell: meteors keep the sky's grain and their original size
+// Sizes follow the sky's cell (CloudBand's nearCloud.cell): 8 css px normally, larger when zoomed far out.
+// FINE: css px per overlay pixel, half a cell, so flames sit in proportion to body text.
 const SPEED = 640; // css px/s, only used for how long an aimed meteor's tail takes to drain into its letter
 const FREE_SPEED = [520, 640], FREE_LIFE = [0.9, 1.3]; // short arcs, like the sketch: ~300-400 px left, curling down
 const TAIL = 34; // tail samples, one sky cell apart
@@ -73,7 +73,9 @@ export function Meteors() {
     document.head.append(style);
 
     let cols = 0, rows = 0, img = ctx.createImageData(1, 1), buf = new Uint32Array(img.data.buffer);
+    let CELL = 8, FINE = 4, S = 1; // S: speed scale, so a zoomed-out sky's meteors cross the screen at the same pace
     const size = () => {
+      CELL = nearCloud.cell; FINE = CELL / 2; S = CELL / 8;
       cols = Math.ceil(innerWidth / FINE); rows = Math.ceil(innerHeight / FINE);
       cv.width = cols; cv.height = rows;
       cv.style.width = `${cols * FINE}px`; cv.style.height = `${rows * FINE}px`; // whole pixels, so every block is the same size
@@ -139,7 +141,7 @@ export function Meteors() {
           const x0 = rand(left, Math.max(left, W - 30)), dx = x0 - px, k = rand(0.15, 0.75), y0 = py - dx * k; // k: drop per px across
           if (y0 < 12 || inSheet(x0, y0) || Math.hypot(x0 - m.x, y0 - m.y) < m.r + 12) continue;
           const dy = py - y0, a0 = Math.min(rand(0, 14) * Math.PI / 180, Math.atan(k * 0.9)); // start angle: never above level
-          const T = Math.min(1.8, Math.max(0.5, Math.hypot(dx, dy) * 1.1 / rand(480, 720)));
+          const T = Math.min(1.8, Math.max(0.5, Math.hypot(dx, dy) * 1.1 / (rand(480, 720) * S)));
           const vx = -dx / T, vy = (dx / T) * Math.tan(a0), g = (2 * (dy - vy * T)) / (T * T); // lands exactly on the letter
           hit = { x: x0, y: y0, vx, vy, g, t0: now, life: T, range };
         }
@@ -154,7 +156,7 @@ export function Meteors() {
           ok = !inSheet(sx, sy) && Math.hypot(sx - m.x, sy - m.y) > m.r + 12; // never inside the page box or on the moon
         }
         if (!ok) return;
-        const v = rand(FREE_SPEED[0], FREE_SPEED[1]), T = rand(FREE_LIFE[0], FREE_LIFE[1]);
+        const v = rand(FREE_SPEED[0], FREE_SPEED[1]) * S, T = rand(FREE_LIFE[0], FREE_LIFE[1]);
         const a0 = rand(3, 15) * Math.PI / 180, a1 = rand(38, 55) * Math.PI / 180; // start and end angle below horizontal
         const vx = -Math.cos(a0) * v, vy = Math.sin(a0) * v;
         const g = (Math.tan(a1) * -vx - vy) / T; // gravity that bends a0 into exactly a1 by the end of the flight
@@ -186,7 +188,7 @@ export function Meteors() {
         const m = meteors[j], age = now - m.t0, behind = !m.range; // only the one aimed at a letter flies in front of the page
         if (m.range && !m.hit && age >= m.life) { m.hit = true; ignite(m.range, now); }
         // Aimed meteors stop at the letter and their tail drains into it; free ones fade out mid-flight.
-        if (age > (m.range ? m.life + TAIL * CELL / SPEED : m.life)) { meteors.splice(j, 1); continue; }
+        if (age > (m.range ? m.life + TAIL * CELL / (SPEED * S) : m.life)) { meteors.splice(j, 1); continue; }
         const fade = Math.min(1, age / 0.12) * (m.range ? 1 : Math.min(1, (m.life - age) / 0.4));
         const at = (q: number) => [(m.x + m.vx * q) / CELL, (m.y + m.vy * q + 0.5 * m.g * q * q) / CELL];
         // The sky's original meteor: the tail traces the arc back in time, one cell per sample, two cells thick near the head.
