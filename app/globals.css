@@ -210,6 +210,17 @@ kbd { font-family: var(--mono); font-size: 0.75rem; color: var(--fg-2); padding:
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 @keyframes slide-in { from { opacity: 0; transform: translateX(-8px); } }
 
+/* Tagline typewriter caret, from the original site. Fades while idle, holds solid while typing. */
+.caret { display: inline-block; width: 0.45em; height: 0.95em; margin-left: 0.1em; vertical-align: -0.12em; background: var(--accent); animation: caret-fade 1.15s ease-in-out infinite; }
+.caret-solid { animation: none; }
+.caret-hidden { visibility: hidden; animation: none; } /* kept in flow so the line holds its height */
+@keyframes caret-fade { 50% { opacity: 0; } }
+
+/* A pixel star sits up by the name, the same square-pixel grain as the clouds, and twinkles. */
+.star { display: inline-block; width: 0.27em; height: 0.27em; margin-left: 0.08em; vertical-align: 0.95em; background: var(--fg); clip-path: polygon(33.3% 0, 66.6% 0, 66.6% 33.3%, 100% 33.3%, 100% 66.6%, 66.6% 66.6%, 66.6% 100%, 33.3% 100%, 33.3% 66.6%, 0 66.6%, 0 33.3%, 33.3% 33.3%); animation: twinkle 4.2s steps(1) 1.4s infinite; }
+h1:hover .star { background: var(--accent); }
+@keyframes twinkle { 0%, 100% { opacity: 1; } 8% { opacity: 0.35; } 12% { opacity: 1; } 55% { opacity: 0.6; } 60% { opacity: 1; } }
+
 @media (max-width: 40rem) {
   .sheet { margin: 4.5rem auto 4rem; padding: 1.5rem 1.25rem 2rem; }
   .row { grid-template-columns: 1fr; gap: 0.5rem; }
