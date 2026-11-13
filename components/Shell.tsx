@@ -1,4 +1,5 @@
 import { CloudBand } from "./CloudBand";
+import { Meteors } from "./Meteors";
 import { SITE_SKY, type Sky } from "../lib/sky";
 import { CommandPalette, type PaletteItem } from "./CommandPalette";
 import { projects } from "../lib/projects";
@@ -20,9 +21,10 @@ export function Shell({ children, sky = SITE_SKY }: { children: React.ReactNode;
   return (
     <div className="site">
       <div className="progress" aria-hidden="true" />
-      <CloudBand sky={sky} />
+      <CloudBand sky={{ ...sky, meteors: false }} />{/* meteors fly above the page instead, in <Meteors /> */}
       <div className="controls"><CommandPalette items={ITEMS} /></div>
       {children}
+      {sky.meteors && <Meteors />}
     </div>
   );
 }
