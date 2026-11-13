@@ -30,7 +30,7 @@ const BURN_CSS = `
 ::highlight(burn-3) { color: oklch(0.6 0.17 38); text-shadow: 0 0 0.2em oklch(0.55 0.17 35 / 0.6); }
 ::highlight(burn-4) { color: oklch(0.72 0.08 50); }`;
 
-type Meteor = { x: number; y: number; vx: number; vy: number; t0: number; life: number; range: Range | null; hit?: boolean };
+type Meteor = { x: number; y: number; vx: number; vy: number; g: number; t0: number; life: number; range: Range | null; hit?: boolean };
 type Burn = { range: Range; t0: number; big: boolean; flick: number; next: number };
 type Spark = { x: number; y: number; vx: number; vy: number; g: number; t0: number; life: number; c0: number; size: number };
 
@@ -137,19 +137,24 @@ export function Meteors() {
         while (off > m.r && inSheet(m.x + ux * off, m.y + uy * off)) off -= 8;
         x0 = m.x + ux * off; y0 = m.y + uy * off;
       }
-      if (range && !inSheet(x0, y0)) { // if the moon itself is behind the page (narrow screens), skip the hit this time
+      // Skip the hit if the moon is behind the page (narrow screens) or the letter is so far below it the path would look vertical.
+      if (range && !inSheet(x0, y0) && py - y0 < 1.1 * (x0 - px)) {
         // Fall along an exact gravity arc onto the letter.
         const T = Math.min(1.5, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED));
-        meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * G * T * T) / T, t0: now, life: T, range });
+        meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * G * T * T) / T, g: G, t0: now, life: T, range });
       } else {
-        // Leave the moon heading left and a little up; gravity bends it over into a falling arc.
-        const a = rand(5, 18) * Math.PI / 180, v = rand(FREE_SPEED[0], FREE_SPEED[1]), ux = -Math.cos(a), uy = -Math.sin(a);
-        const ox = -Math.cos(a * 2), oy = Math.sin(rand(-0.6, 0.6)); // start on the moon's left limb, a little above or below
-        let off = m.r + rand(16, 48);
-        const sx = (o: number) => m.x + ox * o, sy = (o: number) => m.y + oy * o;
-        while (off > m.r && inSheet(sx(off), sy(off))) off -= 8; // never spawn inside the page box
-        if (inSheet(sx(off), sy(off))) return; // moon is behind the page: skip this one
-        meteors.push({ x: sx(off), y: sy(off), vx: ux * v, vy: uy * v, t0: now, life: rand(FREE_LIFE[0], FREE_LIFE[1]), range: null });
+        // A loose radiant: each one appears somewhere around the moon's left side (a few a little lower),
+        // heads left anywhere from slightly up to gently down, and bends with its own amount of gravity.
+        let sx = 0, sy = 0, ok = false;
+        for (let i = 0; i < 12 && !ok; i++) {
+          const p = rand(110, 250) * Math.PI / 180, o = m.r + rand(12, 140); // 180° is straight left of the moon
+          sx = m.x + Math.cos(p) * o; sy = m.y - Math.sin(p) * o + rand(-10, 50);
+          ok = !inSheet(sx, sy); // never spawn inside the page box
+        }
+        if (!ok) return; // moon is behind the page (narrow screens): skip this one
+        const deg = rand(-20, 32), a = deg * Math.PI / 180, v = rand(FREE_SPEED[0], FREE_SPEED[1]);
+        const g = rand(70, 240) * (1 - Math.max(0, deg) / 48); // steeper starts get less bend, so the end never turns vertical
+        meteors.push({ x: sx, y: sy, vx: -Math.cos(a) * v, vy: Math.sin(a) * v, g, t0: now, life: rand(FREE_LIFE[0], FREE_LIFE[1]), range: null });
       }
       kick();
     };
@@ -179,7 +184,7 @@ export function Meteors() {
         // Aimed meteors stop at the letter and their tail drains into it; free ones fade out mid-flight.
         if (age > (m.range ? m.life + TAIL * CELL / SPEED : m.life)) { meteors.splice(j, 1); continue; }
         const fade = Math.min(1, age / 0.12) * (m.range ? 1 : Math.min(1, (m.life - age) / 0.4));
-        const at = (q: number) => [(m.x + m.vx * q) / CELL, (m.y + m.vy * q + 0.5 * G * q * q) / CELL];
+        const at = (q: number) => [(m.x + m.vx * q) / CELL, (m.y + m.vy * q + 0.5 * m.g * q * q) / CELL];
         // The sky's original meteor: the tail traces the arc back in time, one cell per sample, two cells thick near the head.
         const dq = CELL / Math.hypot(m.vx, m.vy);
         for (let k = TAIL - 1; k >= 0; k--) {
