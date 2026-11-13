@@ -36,7 +36,7 @@ export function field(x: number, y: number, t: number, seed: number) {
   return clamp((v - 0.2) / 0.6);
 }
 
-export type RGB = [number, number, number];
+type RGB = [number, number, number];
 
 export function oklch(l: number, c: number, h: number): RGB {
   const a = c * Math.cos((h * Math.PI) / 180), b = c * Math.sin((h * Math.PI) / 180);

@@ -1,6 +1,6 @@
-import { projects as base, type Project } from "./content";
+import { projects as base } from "./content";
 
-// To add a project: add it to ../lib/content.ts (name, blurb, description, github, year), then optionally
+// To add a project: add it to ./content.ts (name, blurb, description, github, year), then optionally
 // describe its showcase below. Drop images in public/projects/ and reference them as "/projects/<file>".
 // A project with no cover gets a generated pixel cover, so the layout never has an empty slot.
 export type Media = { src: string; alt: string };
@@ -20,21 +20,7 @@ const EXTRA: Record<string, Extra> = {
   Esp32Network: { tags: ["scikit-learn", "ESP32", "C"] },
 };
 
-export const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-// Projects only the redesign lists; ../lib/content.ts is shared with the original site.
-const HIDDEN = new Set(["Cube"]); // still on the original site, not shown here
-const OWN: Project[] = [
-  {
-    name: "Machina",
-    blurb: "a self-hosted multi-agent AI harness",
-    description: "A self-hosted AI agent harness that runs in the terminal. Agents share PostgreSQL-backed context, RAG and long-term memory, so conversations survive a restart, and it works with cloud providers or local models. It runs as a terminal UI, a CLI, an HTTP API and an MCP server.",
-    github: "https://github.com/kiazh/Machina-Harness",
-    year: "2026",
-    status: null,
-  },
-];
-
-export const projects = [...OWN, ...base].filter((p) => !HIDDEN.has(p.name)).map((p) => ({ ...p, slug: slugify(p.name), tags: [] as string[], ...EXTRA[p.name] }));
-export type ProjectWithMedia = (typeof projects)[number];
+export const projects = base.map((p) => ({ ...p, slug: slugify(p.name), tags: [] as string[], ...EXTRA[p.name] }));
 export const getProject = (slug: string) => projects.find((p) => p.slug === slug);

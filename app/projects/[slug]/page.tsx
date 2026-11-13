@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ScrambleText } from "@/components/ScrambleText"; // the original site's component, unchanged
 import { ProjectCover } from "../../../components/ProjectCover";
@@ -25,7 +26,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   return (
     <Shell>
       <main className="sheet project">
-        <a className="back" href="/#projects"><i className="chev back-chev" aria-hidden="true" />Projects</a>
+        <Link className="back" href="/#projects"><i className="chev back-chev" aria-hidden="true" />Projects</Link>
         <header>
           <h1><ScrambleText text={p.name} trigger="mount-then-hover" delayMs={120} as="span" /></h1>
           <p className="tag">{cap(p.blurb)}</p>
@@ -49,8 +50,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         )}
 
         <nav className="pn" aria-label="More projects">
-          <a href={`/projects/${prev.slug}`}><span className="sub">Previous</span><span className="pn-name"><i className="chev back-chev" aria-hidden="true" />{prev.name}</span></a>
-          <a href={`/projects/${next.slug}`}><span className="sub">Next</span><span className="pn-name">{next.name}<i className="chev" aria-hidden="true" /></span></a>
+          <Link href={`/projects/${prev.slug}`}><span className="sub">Previous</span><span className="pn-name"><i className="chev back-chev" aria-hidden="true" />{prev.name}</span></Link>
+          <Link href={`/projects/${next.slug}`}><span className="sub">Next</span><span className="pn-name">{next.name}<i className="chev" aria-hidden="true" /></span></Link>
         </nav>
       </main>
     </Shell>

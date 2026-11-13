@@ -6,13 +6,8 @@ export type Sky = {
   rims?: boolean; // cloud edges facing the light get brighter, so clouds read as shapes
   sharp?: boolean; // harder cloud edges, more clear sky between them
   layers?: boolean; // a faint, slow, distant cloud layer behind the main one
-  meteors?: boolean; // an occasional shooting star
-  moonX?: number; moonY?: number; // moon centre as a fraction of the viewport; default upper right
+  meteors?: boolean; // shooting-star showers above the page (components/Meteors)
   moonR?: number; // moon radius in cells (default 13)
-  metSize?: number; // 1 = default; scales a shooting star's tail, thickness, head and speed
-  metCluster?: number; // shooting stars per burst (default 1)
-  metSpread?: number; // cells between the streaks of a burst (default 10)
-  metSides?: boolean; // start in the side gutters and fly outward, so the sheet never hides them
 };
 
 /** The site's sky: chosen in the sky lab (Deep + Meteors, crescent moon). */

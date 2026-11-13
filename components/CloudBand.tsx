@@ -20,12 +20,10 @@ const LIGHT_LIFT = 0.42;
 const DROP_LIFE = 1.6; // seconds
 const DROP_RADIUS = 9; // cells
 const MAX_DROPS = 8;
-// Moon and meteors, in cells and seconds.
+// Moon, in cells.
 const MOON_R = 13;
 const MOON_TILT = (38 * Math.PI) / 180; // the lit limb faces down and to the right, like a real evening crescent
 const SYNODIC = 29.530588853; // days
-const MET_GAP: [number, number] = [20, 45]; // seconds between shooting stars: rare enough to feel like a find
-const MET_LIFE = 1.2, MET_SPEED = 80, MET_G = 30, MET_TAIL = 34; // cells/s, cells/s² of fall that bends the path into an arc, tail cells
 
 const rgb32 = (c: number[]) => (255 << 24) | (c[2] << 16) | (c[1] << 8) | c[0]; // little-endian RGBA
 // Night only. Entry 3 is the page colour (--bg).
@@ -33,15 +31,12 @@ const PAL = [oklch(0.1, 0.04, 270), oklch(0.15, 0.06, 268), oklch(0.21, 0.07, 26
 const STAR = rgb32(oklch(0.94, 0.03, 230));
 // Moon: bright outer limb, a softer band toward the terminator, darker craters. No earthshine: the dark side is just sky.
 const MOON_HI = rgb32(oklch(0.93, 0.015, 235)), MOON_MID = rgb32(oklch(0.84, 0.02, 238)), MOON_LO = rgb32(oklch(0.72, 0.025, 240));
-// Shooting star: a white-gold head cooling through yellow and amber into the sky's own blue.
-const MET_COL = [oklch(0.98, 0.04, 95), oklch(0.9, 0.14, 92), oklch(0.78, 0.15, 75), oklch(0.55, 0.09, 245)].map(rgb32);
 const G0 = 0.12, G1 = 0.48, K = 0.3; // sky gradient (dark at the top, lighter toward the bottom), cloud strength
 
 /** Moon phase 0..1 (0 new, 0.5 full) from a reference new moon (2000-01-06 18:14 UTC). Checked: 2024-01-11 new -> 0.011, 2024-01-25 full -> 0.493. */
-export const moonPhase = (ms: number) => ((((ms / 86400000 + 2440587.5 - 2451550.1) / SYNODIC) % 1) + 1) % 1;
+const moonPhase = (ms: number) => ((((ms / 86400000 + 2440587.5 - 2451550.1) / SYNODIC) % 1) + 1) % 1;
 
 type Drop = { x: number; y: number; t0: number };
-type Meteor = { x: number; y: number; vx: number; vy: number; t0: number; size: number; speed: number };
 
 export function CloudBand({ sky = {} }: { sky?: Sky }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -64,8 +59,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
     let mx = 0, my = 0;
     let t = 5, last = 0, lastBase = -1e9, raf = 0, done = 0; // done: rows recomputed so far in the current pass
     let tx = -99, ty = -99, hx = -99, hy = -99, heat = 0, lastMove = -1e9;
-    const drops: Drop[] = [], meteors: Meteor[] = [];
-    let nextMeteor = t + 2;
+    const drops: Drop[] = [];
 
     const phase = o.moon === "full" ? 0.5 : o.moon === "crescent" ? 0.18 : moonPhase(Date.now());
     const lit = (1 - Math.cos(2 * Math.PI * phase)) / 2; // fraction of the disc that is lit
@@ -147,35 +141,6 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
           buf[i] = out;
         }
       }
-      // Meteors fall along an arc (a little gravity bends the path). The tail traces the same arc back in time,
-      // cooling from a white-gold head through yellow and amber into blue, two cells thick near the head.
-      const plot = (x: number, y: number, col: number, f: number) => {
-        x = Math.round(x); y = Math.round(y);
-        if (x >= 0 && y >= 0 && x < cols && y < rows && f > BAYER[(y & 3) * 4 + (x & 3)]) buf[y * cols + x] = col;
-      };
-      for (const s of meteors) {
-        const age = t - s.t0, fade = Math.min(1, age / 0.12) * Math.min(1, (MET_LIFE - age) / 0.4);
-        if (age < 0) continue; // a later streak of a burst, not launched yet
-        const at = (q: number) => [s.x + s.vx * q, s.y + s.vy * q + 0.5 * MET_G * q * q];
-        const tail = Math.round(MET_TAIL * s.size), core = s.size < 0.8 ? 1 : s.size < 1.4 ? 2 : 3;
-        for (let k = tail - 1; k >= 0; k--) { // tail first, so the head draws on top
-          const q = age - k / s.speed;
-          if (q < 0) continue;
-          const [x, y] = at(q), r = k / tail, f = fade * (1 - r * r * 0.9); // stays solid most of the way, breaks up at the end
-          const col = MET_COL[r < 0.08 ? 0 : r < 0.35 ? 1 : r < 0.65 ? 2 : 3];
-          plot(x, y, col, f);
-          if (core > 1 && r < 0.5) plot(x, y + 1, col, f * 0.9);
-          if (core > 2 && r < 0.35) plot(x, y - 1, col, f * 0.8);
-        }
-        // The head: a white-gold core (1, 2 or 3 cells square by size) inside a yellow glow one cell wide.
-        const [hx0, hy0] = at(age);
-        for (let oy = -1; oy <= core; oy++)
-          for (let ox = -1; ox <= core; ox++) {
-            const edgeX = ox < 0 || ox >= core, edgeY = oy < 0 || oy >= core;
-            if (edgeX && edgeY) continue; // round the corners
-            plot(hx0 + ox, hy0 + oy, edgeX || edgeY ? MET_COL[1] : MET_COL[0], edgeX || edgeY ? fade : 1);
-          }
-      }
       ctx.putImageData(img, 0, 0, x0, y0, x1 - x0, y1 - y0);
     };
 
@@ -200,20 +165,6 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
     };
     const repaint = () => { baseNow(); compose(); };
 
-    // A burst: streaks from one radiant, nearly parallel, offset sideways and launched a beat apart.
-    const burst = () => {
-      const n = Math.max(1, o.metCluster ?? 1), size = o.metSize ?? 1, spread = o.metSpread ?? 10;
-      const speed = MET_SPEED * (0.85 + 0.15 * size), right = Math.random() < 0.5;
-      const dir = o.metSides ? (right ? 1 : -1) : -1; // sides: fly outward across the gutter; otherwise down and to the left
-      const x0 = cols * (o.metSides ? (right ? 0.8 + Math.random() * 0.1 : 0.1 + Math.random() * 0.1) : 0.35 + Math.random() * 0.6);
-      const y0 = rows * (0.03 + Math.random() * 0.25), a0 = 12 + Math.random() * 14;
-      for (let j = 0; j < n; j++) {
-        const ang = ((a0 + (Math.random() - 0.5) * 6) * Math.PI) / 180, off = j === 0 ? 0 : (Math.random() - 0.5) * 2 * spread;
-        const cx = Math.cos(ang) * dir, cy = Math.sin(ang); // unit direction of travel
-        meteors.push({ x: x0 - cy * off - cx * j * 3, y: y0 + cx * off - cy * j * 3, vx: cx * speed, vy: cy * speed, t0: t + j * 0.14 + Math.random() * 0.18, size, speed });
-      }
-    };
-
     const loop = (now: number) => {
       const dt = last ? Math.min((now - last) / 1000, 0.1) : 0; // dt-based, so refresh rate doesn't change the feel
       last = now; t += dt;
@@ -223,17 +174,12 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
       const phx = hx, phy = hy;
       hx += (tx - hx) * k; hy += (ty - hy) * k;
       while (drops.length && t - drops[0].t0 >= DROP_LIFE) drops.shift();
-      for (let j = meteors.length - 1; j >= 0; j--) if (t - meteors[j].t0 >= MET_LIFE) meteors.splice(j, 1); // bursts launch out of order
-      if (o.meteors && t >= nextMeteor) {
-        burst();
-        nextMeteor = t + MET_GAP[0] + Math.random() * (MET_GAP[1] - MET_GAP[0]);
-      }
       // Advance the rolling recompute to where it should be at this point of the pass; compose when a pass completes.
       const target = Math.min(rows, Math.ceil(((now - lastBase) / BASE_MS) * rows));
       if (target > done) { baseRows(done, target); done = target; }
       const fresh = done >= rows;
       if (fresh) { done = 0; lastBase = now; }
-      if (fresh || meteors.length) compose(); // a full pass; meteors cross the screen, so redraw all of it while one flies
+      if (fresh) compose(); // a full pass
       else if (heat > 0.01 || drops.length) {
         // Only the cursor's pool (where it was and where it is now) and the drops changed.
         let rx0 = cols, ry0 = rows, rx1 = 0, ry1 = 0;

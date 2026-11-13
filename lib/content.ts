@@ -1,20 +1,25 @@
-export type Project = {
+type Project = {
   name: string
   blurb: string
   description: string
   github: string
   year: string
-  status: string | null
 }
 
 export const projects: Project[] = [
+  {
+    name: 'Machina',
+    blurb: 'a self-hosted multi-agent AI harness',
+    description: "A self-hosted AI agent harness that runs in the terminal. Agents share PostgreSQL-backed context, RAG and long-term memory, so conversations survive a restart, and it works with cloud providers or local models. It runs as a terminal UI, a CLI, an HTTP API and an MCP server.",
+    github: 'https://github.com/kiazh/Machina-Harness',
+    year: '2026',
+  },
   {
     name: 'Facial Recognition',
     blurb: 'face verification with a Siamese network',
     description: "Face verification with a Siamese network, it compares faces instead of memorizing them so adding a new person doesn't mean retraining the whole thing. Also built a document scanner next to it while I was figuring out TensorFlow and OpenCV.",
     github: 'https://github.com/kiazh/OpenCVProj',
     year: '2025',
-    status: null,
   },
   {
     name: 'MLscratch',
@@ -22,7 +27,6 @@ export const projects: Project[] = [
     description: "Machine learning in C with no libraries, just linear algebra and calculus. I didn't want to call torch.nn without knowing what it was actually doing. Still the project I'm most attached to.",
     github: 'https://github.com/kiazh/MLscratch',
     year: '2026',
-    status: null,
   },
   {
     name: 'AES-128',
@@ -30,7 +34,6 @@ export const projects: Project[] = [
     description: "AES-128 in Go, written straight off the FIPS 197 spec. The S-box is a hardcoded table but MixColumns actually does GF(2⁸) field arithmetic at runtime through gmul. Passes the official test vector. C port eventually.",
     github: 'https://github.com/kiazh/AES-128',
     year: '2025',
-    status: null,
   },
   {
     name: 'Esp32Network',
@@ -38,29 +41,15 @@ export const projects: Project[] = [
     description: "A scikit-learn decision tree running on an ESP32, classifying NRF24 link quality as normal, weak, or interference. Compiles down to one C header, zero runtime dependencies.",
     github: 'https://github.com/kiazh/Esp32Network',
     year: '2024',
-    status: null,
-  },
-  {
-    name: 'Cube',
-    blurb: 'spinning cube in plain C, no graphics lib',
-    description: "A spinning cube in plain C, no graphics library. Mostly an excuse to actually do the rotation math myself and was related to course work.",
-    github: 'https://github.com/kiazh/Cube',
-    year: '2026',
-    status: null,
   },
 ]
 
-export type Tab = 'anime' | 'physics' | 'games' | 'goals'
+type Tab = 'anime' | 'physics' | 'games' | 'goals'
 
-export type TabItem = {
-  title: string
-  note: string
-}
-
-export type TabContent = {
+type TabContent = {
   label: string
   body: string
-  items?: TabItem[]
+  items?: { title: string; note: string }[]
 }
 
 export const interests: Record<Tab, TabContent> = {
@@ -103,15 +92,7 @@ export const interests: Record<Tab, TabContent> = {
 
 export const tabs: Tab[] = ['anime', 'physics', 'games', 'goals']
 
-export type CurrentItem = {
-  label: string
-  value: string
-  href?: string
-  /** Draws extra visual attention — reserved for the one link recruiters most need to find. */
-  emphasize?: boolean
-}
-
-export const currently: CurrentItem[] = [
+export const currently: { label: string; value: string; href?: string }[] = [
   {
     label: 'job',
     value: 'ML research @ UofT',
@@ -119,8 +100,8 @@ export const currently: CurrentItem[] = [
   },
   {
     label: 'building',
-    value: 'Agent Harness',
-    href: 'https://github.com/kiazh/Harness-',
+    value: 'Machina',
+    href: 'https://github.com/kiazh/Machina-Harness',
   },
   {
     label: 'learning',
@@ -130,14 +111,5 @@ export const currently: CurrentItem[] = [
     label: 'resume',
     value: 'view resume',
     href: 'https://drive.google.com/file/d/1iVQDTHbq3gcxyZCjN1gqKhMSPSfDgHuS/view?usp=sharing',
-    emphasize: true,
-  },
-]
-
-export const recently: CurrentItem[] = [
-  {
-    label: 'built',
-    value: 'MLscratch — machine learning in C, no libraries',
-    href: 'https://github.com/kiazh/MLscratch',
   },
 ]

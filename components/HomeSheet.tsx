@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { interests, tabs } from "@/lib/content";
 import { getDestinyStatus } from "@/lib/destiny";
 import { DestinyStatus } from "@/components/DestinyStatus";
@@ -69,26 +70,26 @@ export async function HomeSheet() {
           {featured.length > 0 && (
             <div className="featured">
               {featured.map((p) => (
-                <a className="card" href={`/projects/${p.slug}`} key={p.slug}>
+                <Link className="card" href={`/projects/${p.slug}`} key={p.slug}>
                   <ProjectCover name={p.name} cover={p.cover} className="cover" />
                   <span className="card-body">
                     <span className="title"><span>{p.name}</span><span className="year">{p.year}</span></span>
                     <span className="sub">{cap(p.blurb)}</span>
                     {p.tags.length > 0 && <span className="tags">{p.tags.map((t) => <span key={t}>{t}</span>)}</span>}
                   </span>
-                </a>
+                </Link>
               ))}
             </div>
           )}
           <ul className="plist">
             {projects.filter((p) => !p.featured).map((p) => (
               <li key={p.slug}>
-                <a className="prow" href={`/projects/${p.slug}`}>
+                <Link className="prow" href={`/projects/${p.slug}`}>
                   <span className="pname"><ScrambleText text={p.name} /></span>
                   <span className="ptags">{p.tags.join(" · ")}</span>
                   <span className="year">{p.year}</span>
                   <i className="chev" aria-hidden="true" />
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

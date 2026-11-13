@@ -21,7 +21,7 @@ export function Shell({ children, sky = SITE_SKY }: { children: React.ReactNode;
   return (
     <div className="site">
       <div className="progress" aria-hidden="true" />
-      <CloudBand sky={{ ...sky, meteors: false }} />{/* meteors fly above the page instead, in <Meteors /> */}
+      <CloudBand sky={sky} />
       <div className="controls"><CommandPalette items={ITEMS} /></div>
       {children}
       {sky.meteors && <Meteors />}

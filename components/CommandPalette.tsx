@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Command } from "cmdk";
 import { PATHS } from "./Social";
 
@@ -24,13 +24,15 @@ const Brand = ({ d }: { d: string }) => (
 const icon = (it: PaletteItem) =>
   PATHS[it.label] ? <Brand d={PATHS[it.label]} /> : <Line d={it.copy ? LINE.copy : it.group === "Projects" ? LINE.file : it.href?.startsWith("/") ? LINE.hash : LINE.doc} />;
 
+const noop = () => () => {};
+
 export function CommandPalette({ items }: { items: PaletteItem[] }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [mac, setMac] = useState(true); // matches the server render; corrected after mount
+  // Read on the client without an extra render; the server assumes Mac.
+  const mac = useSyncExternalStore(noop, () => /Mac|iPhone|iPad/.test(navigator.platform), () => true);
 
   useEffect(() => {
-    setMac(/Mac|iPhone|iPad/.test(navigator.platform));
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
