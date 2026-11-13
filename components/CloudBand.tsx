@@ -36,6 +36,9 @@ const G0 = 0.12, G1 = 0.48, K = 0.3; // sky gradient (dark at the top, lighter t
 /** Moon phase 0..1 (0 new, 0.5 full) from a reference new moon (2000-01-06 18:14 UTC). Checked: 2024-01-11 new -> 0.011, 2024-01-25 full -> 0.493. */
 const moonPhase = (ms: number) => ((((ms / 86400000 + 2440587.5 - 2451550.1) / SYNODIC) % 1) + 1) % 1;
 
+/** Where the moon sits, in viewport css px (r = disc radius). Meteors use it as their shower's radiant. */
+export const moonAt = { x: -1, y: -1, r: 0 };
+
 type Drop = { x: number; y: number; t0: number };
 
 export function CloudBand({ sky = {} }: { sky?: Sky }) {
@@ -161,6 +164,7 @@ export function CloudBand({ sky = {} }: { sky?: Sky }) {
       if (fit >= 6) { R = Math.min(R0, fit); mx = (w - gutter / 2) / cell; my = Math.max(R * 2 + 4, rows * 0.16); }
       else { R = Math.max(4, Math.min(R0, Math.floor((top * 0.4) / cell))); mx = R + 3; my = top / 2 / cell; }
       HALO_R = R * 4;
+      moonAt.x = mx * cell; moonAt.y = my * cell; moonAt.r = o.moon ? R * cell : 0;
       return true;
     };
     const repaint = () => { baseNow(); compose(); };

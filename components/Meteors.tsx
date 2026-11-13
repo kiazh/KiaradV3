@@ -2,13 +2,14 @@
 
 import { useEffect, useRef } from "react";
 import { BAYER, oklch } from "../lib/field";
+import { moonAt } from "./CloudBand";
 
-// Shooting stars, drawn above everything. Showers of 1-4, well spaced, always flying right to left, then the sky rests.
+// Shooting stars, drawn above everything. Showers of 1-4, well spaced, radiating from the moon, then the sky rests.
 // Now and then one lands on a real letter and sets it alight: the letter itself is recoloured through the
 // CSS Custom Highlight API (no DOM changes, so React never notices), and pixel flames rise off it here.
 const FINE = 4; // css px per overlay pixel: flames are this fine, so they sit in proportion to body text
 const CELL = 8; // css px per sky cell: meteors keep the sky's grain and their original size
-const SPEED = 640, G = 240, FREE_LIFE = 1.2; // css px/s, px/s² (bends the path into an arc), s: the sky's original values
+const SPEED = 640, G = 110, FREE_LIFE = 1.3; // css px/s, px/s² (a slight sag, so streaks stay nearly straight like real ones), max s
 const TAIL = 34; // tail samples, one sky cell apart
 const SHOWER = [1, 4], GAP = [1.2, 3.2], REST = 30, FIRST = 4.5, AIM = 0.35; // count, s apart, s rest, s to first, P(a shower has a hit)
 const FLASH = 0.15, BURN = 1.8, COOL = 1; // s: white-hot impact, burning, cooling back to normal
@@ -88,9 +89,15 @@ export function Meteors() {
       if (x >= 0 && y >= 0 && x < cols && y < rows && f > BAYER[(y & 3) * 4 + (x & 3)]) buf[y * cols + x] = col;
     };
     // One sky cell = a 2x2 block, dithered on the sky's grid, so meteors look exactly like they did in the sky.
-    const plotCell = (cx: number, cy: number, col: number, f: number) => {
+    // behind: skip cells under the sheet, so ordinary meteors pass behind the page like the rest of the sky.
+    let sheet: DOMRect | undefined;
+    const plotCell = (cx: number, cy: number, col: number, f: number, behind = false) => {
       cx = Math.round(cx); cy = Math.round(cy);
       if (f <= BAYER[(cy & 3) * 4 + (cx & 3)]) return;
+      if (behind && sheet) {
+        const x = cx * CELL, y = cy * CELL;
+        if (x + CELL > sheet.left && x < sheet.right && y + CELL > sheet.top && y < sheet.bottom) return;
+      }
       const s = CELL / FINE;
       for (let oy = 0; oy < s; oy++) for (let ox = 0; ox < s; ox++) plot(cx * s + ox, cy * s + oy, col, 1);
     };
@@ -107,20 +114,32 @@ export function Meteors() {
       }
     };
 
-    // Everything below is in css px. Shooting stars always fly right to left, falling along a gravity arc.
+    // Everything below is in css px. A real shower has a radiant: every streak traces back to one point.
+    // Here that point is the moon, so meteors fan out from just beyond its disc across the page.
+    const radiant = () => (moonAt.x >= 0 ? moonAt : { x: innerWidth * 0.85, y: innerHeight * 0.15, r: 0 });
     const launch = (aim: boolean) => {
-      const now = performance.now() / 1000, W = innerWidth, H = innerHeight;
+      const now = performance.now() / 1000, W = innerWidth, H = innerHeight, m = radiant();
       const range = aim ? pickLetter() : null;
       if (range) {
-        // Aim: start up and to the right of the letter and fall along an exact gravity arc onto it.
+        // Aim: leave the moon on the line toward the letter and fall along an exact gravity arc onto it.
         const b = range.getBoundingClientRect();
         const px = b.left + b.width / 2, py = b.top + b.height * 0.45;
-        const x0 = px + Math.max(W * rand(0.3, 0.55), 240), y0 = Math.max(-20, py - rand(180, 320));
-        const T = Math.min(1.5, Math.max(0.7, Math.hypot(px - x0, py - y0) / SPEED));
+        const d = Math.hypot(px - m.x, py - m.y) || 1, off = m.r + rand(20, 60);
+        const x0 = m.x + ((px - m.x) / d) * off, y0 = m.y + ((py - m.y) / d) * off;
+        const T = Math.min(1.5, Math.max(0.6, Math.hypot(px - x0, py - y0) / SPEED));
         meteors.push({ x: x0, y: y0, vx: (px - x0) / T, vy: (py - y0 - 0.5 * G * T * T) / T, t0: now, life: T, range });
       } else {
-        const a = (rand(12, 26) * Math.PI) / 180; // the sky's original angles
-        meteors.push({ x: W * rand(0.35, 0.95), y: H * rand(0.03, 0.28), vx: -Math.cos(a) * SPEED, vy: Math.sin(a) * SPEED, t0: now, life: FREE_LIFE, range: null });
+        // Fan out from the moon toward a random patch of open sky (not under the page), starting a little way out.
+        const sh = document.querySelector(".sheet")?.getBoundingClientRect();
+        let tx = W * 0.5, ty = H * 0.5;
+        for (let i = 0; i < 30; i++) {
+          const x = rand(0, W), y = rand(0, H * 0.75);
+          const open = !sh || x < sh.left - 16 || x > sh.right + 16 || y < sh.top - 16 || y > sh.bottom + 16;
+          if (open && Math.hypot(x - m.x, y - m.y) > m.r + 180) { tx = x; ty = y; break; }
+        }
+        const a = Math.atan2(ty - m.y, tx - m.x);
+        const off = m.r + rand(30, 160), ux = Math.cos(a), uy = Math.sin(a);
+        meteors.push({ x: m.x + ux * off, y: m.y + uy * off, vx: ux * SPEED, vy: uy * SPEED, t0: now, life: rand(0.9, FREE_LIFE), range: null });
       }
       kick();
     };
@@ -142,9 +161,10 @@ export function Meteors() {
       const now = ms / 1000, dt = last ? Math.min(0.1, now - last) : 0;
       last = now;
       buf.fill(0);
+      sheet = document.querySelector(".sheet")?.getBoundingClientRect();
 
       for (let j = meteors.length - 1; j >= 0; j--) {
-        const m = meteors[j], age = now - m.t0;
+        const m = meteors[j], age = now - m.t0, behind = !m.range; // only the one aimed at a letter flies in front of the page
         if (m.range && !m.hit && age >= m.life) { m.hit = true; ignite(m.range, now); }
         // Aimed meteors stop at the letter and their tail drains into it; free ones fade out mid-flight.
         if (age > (m.range ? m.life + TAIL * CELL / SPEED : m.life)) { meteors.splice(j, 1); continue; }
@@ -157,8 +177,8 @@ export function Meteors() {
           if (q < 0 || q > m.life) continue;
           const [x, y] = at(q), r = k / TAIL, f = fade * (1 - r * r * 0.9); // stays solid most of the way, breaks up at the end
           const col = MET[r < 0.08 ? 0 : r < 0.35 ? 1 : r < 0.65 ? 2 : 3];
-          plotCell(x, y, col, f);
-          if (r < 0.5) plotCell(x, y + 1, col, f * 0.9);
+          plotCell(x, y, col, f, behind);
+          if (r < 0.5) plotCell(x, y + 1, col, f * 0.9, behind);
         }
         if (age < m.life) { // the head: a 2x2 white-gold core in a one-cell yellow glow, corners rounded
           const [hx, hy] = at(age);
@@ -166,7 +186,7 @@ export function Meteors() {
             for (let ox = -1; ox <= 2; ox++) {
               const ex = ox < 0 || ox > 1, ey = oy < 0 || oy > 1;
               if (ex && ey) continue;
-              plotCell(hx + ox, hy + oy, ex || ey ? MET[1] : MET[0], ex || ey ? fade : 1);
+              plotCell(hx + ox, hy + oy, ex || ey ? MET[1] : MET[0], ex || ey ? fade : 1, behind);
             }
         }
       }
