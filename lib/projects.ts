@@ -13,7 +13,7 @@ type Extra = {
 };
 
 const EXTRA: Record<string, Extra> = {
-  Machina: { tags: ["Python", "TypeScript", "PostgreSQL"], featured: true, cover: { src: "/projects/machina.jpg", alt: "Machina's terminal UI: chat on the left, editor in the middle, file explorer on the right" } },
+  Machina: { tags: ["Python", "TypeScript", "PostgreSQL", "RAG"], featured: true, cover: { src: "/projects/machina.jpg", alt: "Machina's terminal UI: chat on the left, editor in the middle, file explorer on the right" } },
   MLscratch: { tags: ["C", "autograd", "MNIST"], featured: true },
   "AES-128": { tags: ["Go", "FIPS 197", "GF(2⁸)"], featured: true },
   "Facial Recognition": { tags: ["TensorFlow", "Keras", "OpenCV"] },
