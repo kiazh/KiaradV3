@@ -14,10 +14,10 @@ type Extra = {
 
 const EXTRA: Record<string, Extra> = {
   Machina: { tags: ["Python", "TypeScript", "PostgreSQL"], featured: true, cover: { src: "/projects/machina.jpg", alt: "Machina's terminal UI: chat on the left, editor in the middle, file explorer on the right" } },
-  MLscratch: { tags: ["C"], featured: true },
-  "AES-128": { tags: ["Go", "FIPS 197"], featured: true },
-  "Facial Recognition": { tags: ["TensorFlow", "OpenCV"] },
-  Esp32Network: { tags: ["scikit-learn", "ESP32", "C"] },
+  MLscratch: { tags: ["C", "autograd", "MNIST"], featured: true },
+  "AES-128": { tags: ["Go", "FIPS 197", "GF(2⁸)"], featured: true },
+  "Facial Recognition": { tags: ["TensorFlow", "Keras", "OpenCV"] },
+  Esp32Network: { tags: ["scikit-learn", "ESP-IDF", "C"] },
 };
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
